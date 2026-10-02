@@ -10,7 +10,7 @@ import {
 } from "@kie-ai-tool/core";
 // Standalone Kie.ai CLI. Every command and its flags are derived from
 // @kie-ai-tool/core's TOOL_REGISTRY, so the CLI and the MCP server always
-// expose the exact same tools. Run `kie-cli --help` to list them.
+// expose the exact same tools. Run `kie --help` to list them.
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import {
@@ -118,7 +118,7 @@ async function runTool(
 
 function build() {
   let cli = yargs(hideBin(process.argv))
-    .scriptName("kie-cli")
+    .scriptName("kie")
     .usage(
       "$0 <tool> [options]\n\nGenerate images, video, music and speech via Kie.ai.",
     )
@@ -129,7 +129,7 @@ function build() {
     })
     .demandCommand(
       1,
-      "Specify a tool. Run `kie-cli --help` to list available tools.",
+      "Specify a tool. Run `kie --help` to list available tools.",
     )
     .recommendCommands()
     .strict()

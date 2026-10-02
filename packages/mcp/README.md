@@ -7,30 +7,33 @@ Topaz, HappyHorse and more. Exposes every model as an MCP tool to Claude Desktop
 and other MCP clients.
 
 Prefer a terminal? The same models are available as a standalone CLI:
-`@kie-ai-tool/cli` (binary `kie-cli`). Both surfaces
+`@kie-ai-tool/cli` (command `kie`). Both surfaces
 are generated from one shared tool registry and install independently.
 
 ## Install / configure
 
-> **Not on npm yet.** This package is part of [kie-ai-tool-mcp-skills-agent](https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent). Until it is published, build it from source as the root README explains.
-
-Add to your MCP client config (e.g. Claude Desktop `claude_desktop_config.json`):
+Needs Node.js 22.13 or newer. Add to your MCP client config (for example Claude Desktop's
+`claude_desktop_config.json`, Cursor's `mcp.json` or WorkBuddy's MCP settings):
 
 ```json
 {
   "mcpServers": {
-    "kie-ai": {
-      "command": "node",
-      "args": ["/absolute/path/to/kie-ai-tool-mcp-skills-agent/packages/mcp/dist/index.js"],
-      "env": { "KIE_AI_API_KEY": "your-key" }
+    "kie": {
+      "command": "npx",
+      "args": ["-y", "@kie-ai-tool/mcp"],
+      "env": { "KIE_API_KEY": "your-key", "KIE_AI_APPROVAL": "chat" }
     }
   }
 }
 ```
 
+Use `"form"` instead of `"chat"` if your app shows MCP approval forms. In Claude Code, install the
+plugin instead: it adds skills and an agent too
+(`/plugin marketplace add tansilandre/kie-ai-tool-mcp-skills-agent`).
+
 ### Environment
 
-- Required: `KIE_AI_API_KEY`
+- Required: `KIE_API_KEY` (or `KIE_AI_API_KEY`)
 - Optional: `KIE_AI_BASE_URL`, `KIE_AI_TIMEOUT`, `KIE_AI_DB_PATH`,
   `KIE_AI_CALLBACK_URL`
 - Optional remote upload storage: `KIE_MCP_PUBLIC_BASE_URL`,

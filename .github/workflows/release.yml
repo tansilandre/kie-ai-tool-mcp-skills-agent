@@ -1,13 +1,14 @@
-name: Release (npm publish with provenance)
+name: Release (npm, trusted publishing)
 
-# Publishes all public packages to npm with provenance and to GitHub Packages.
-# The private @kie-ai-tool/core is never published; it is bundled into each
-# public package by the prepack step.
+# Publishes @kie-ai-tool/mcp, @kie-ai-tool/cli and @kie-ai-tool/openai-server
+# to npm with provenance, using npm trusted publishing (OIDC): no npm token is
+# stored anywhere. Each package must already exist on npm and list this repo
+# and this workflow file (release.yml) as its trusted publisher; the first
+# publish is done once by hand with scripts/first-publish.sh.
 #
-# Trigger: push a version tag (e.g. `git tag v4.0.0 && git push origin v4.0.0`)
-# or run manually from the Actions tab. Each package is published only if its
-# current package.json version isn't already in the target registry, so re-runs
-# are safe.
+# Trigger: push a tag like v0.2.0 (after bumping the package versions), or run
+# it from the Actions tab. A version that is already on npm is skipped, so
+# re-runs are safe. @kie-ai-tool/core is private and bundled into the others.
 
 on:
   push:
@@ -20,19 +21,21 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write # required for npm provenance (OIDC)
-  packages: write
+  id-token: write # required for trusted publishing and provenance
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install -g npm@^11.5.1
 
       - run: npm ci
 
@@ -42,74 +45,15 @@ jobs:
           npm run typecheck
           npm test
 
-      - name: Publish @kie-ai-tool/openai-server
+      - name: Publish packages
         run: |
-          VER=$(node -p "require('./packages/openai/package.json').version")
-          if npm view "@kie-ai-tool/openai-server@$VER" version >/dev/null 2>&1; then
-            echo "@kie-ai-tool/openai-server@$VER already published, skipping."
-          else
-            npm publish -w @kie-ai-tool/openai-server --provenance --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @kie-ai-tool/mcp
-        run: |
-          VER=$(node -p "require('./packages/mcp/package.json').version")
-          if npm view "@kie-ai-tool/mcp@$VER" version >/dev/null 2>&1; then
-            echo "@kie-ai-tool/mcp@$VER already published, skipping."
-          else
-            npm publish -w @kie-ai-tool/mcp --provenance --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @kie-ai-tool/cli
-        run: |
-          VER=$(node -p "require('./packages/cli/package.json').version")
-          if npm view "@kie-ai-tool/cli@$VER" version >/dev/null 2>&1; then
-            echo "@kie-ai-tool/cli@$VER already published, skipping."
-          else
-            npm publish -w @kie-ai-tool/cli --provenance --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish @kie-ai-tool/openai-server to GitHub Packages
-        run: |
-          npm config set @kie-ai-tool:registry https://npm.pkg.github.com
-          npm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
-          VER=$(node -p "require('./packages/openai/package.json').version")
-          if npm view "@kie-ai-tool/openai-server@$VER" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
-            echo "@kie-ai-tool/openai-server@$VER already published to GitHub Packages, skipping."
-          else
-            npm publish -w @kie-ai-tool/openai-server --registry=https://npm.pkg.github.com --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-
-      - name: Publish @kie-ai-tool/mcp to GitHub Packages
-        run: |
-          npm config set @kie-ai-tool:registry https://npm.pkg.github.com
-          npm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
-          VER=$(node -p "require('./packages/mcp/package.json').version")
-          if npm view "@kie-ai-tool/mcp@$VER" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
-            echo "@kie-ai-tool/mcp@$VER already published to GitHub Packages, skipping."
-          else
-            npm publish -w @kie-ai-tool/mcp --registry=https://npm.pkg.github.com --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-
-      - name: Publish @kie-ai-tool/cli to GitHub Packages
-        run: |
-          npm config set @kie-ai-tool:registry https://npm.pkg.github.com
-          npm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
-          VER=$(node -p "require('./packages/cli/package.json').version")
-          if npm view "@kie-ai-tool/cli@$VER" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
-            echo "@kie-ai-tool/cli@$VER already published to GitHub Packages, skipping."
-          else
-            npm publish -w @kie-ai-tool/cli --registry=https://npm.pkg.github.com --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
+          for pkg in mcp:@kie-ai-tool/mcp cli:@kie-ai-tool/cli openai:@kie-ai-tool/openai-server; do
+            dir="${pkg%%:*}"
+            name="${pkg#*:}"
+            ver=$(node -p "require('./packages/$dir/package.json').version")
+            if npm view "$name@$ver" version >/dev/null 2>&1; then
+              echo "$name@$ver is already on npm, skipping."
+            else
+              npm publish -w "$name" --provenance --access public
+            fi
+          done

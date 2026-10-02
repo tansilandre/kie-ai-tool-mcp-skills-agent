@@ -34,7 +34,7 @@ price, wait for your yes, generate, and hand back the files.
 | Part | Path | What it does |
 |---|---|---|
 | MCP server | [`packages/mcp`](packages/mcp) | Exposes kie.ai models as MCP tools, over stdio or Streamable HTTP |
-| CLI | [`packages/cli`](packages/cli) | The same tools from the terminal (`kie-cli <tool> --flags`) |
+| CLI | [`packages/cli`](packages/cli) | The same tools from the terminal (`kie <tool> --flags`) |
 | OpenAI-compatible server | [`packages/openai`](packages/openai) | Selected image and video models behind OpenAI-shaped routes |
 | Shared core | [`packages/core`](packages/core) | kie.ai client, tool registry, pricing, plans, task store |
 | Skills | [`skills/`](skills) | What agents load to use the toolkit well (below) |
