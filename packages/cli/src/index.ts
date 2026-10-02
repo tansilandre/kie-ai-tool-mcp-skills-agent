@@ -5,9 +5,9 @@ import {
   type ToolContext,
   type ToolDef,
   toInputJsonSchema,
-} from "@felores/kie-ai-core";
+} from "@kie-ai-tool/core";
 // Standalone Kie.ai CLI. Every command and its flags are derived from
-// @felores/kie-ai-core's TOOL_REGISTRY, so the CLI and the MCP server always
+// @kie-ai-tool/core's TOOL_REGISTRY, so the CLI and the MCP server always
 // expose the exact same tools. Run `kie-cli --help` to list them.
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";

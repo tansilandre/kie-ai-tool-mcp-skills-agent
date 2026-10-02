@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { TaskDatabase } from "@felores/kie-ai-core/database";
 import { afterEach, describe, expect, test } from "@jest/globals";
+import { TaskDatabase } from "@kie-ai-tool/core/database";
 import { CancelTaskResultSchema } from "@modelcontextprotocol/core";
 import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { KieAiMcpServer } from "../index.js";

@@ -8,9 +8,9 @@ This is a **monorepo** (npm workspaces). One shared `core` feeds two published
 surfaces:
 
 ```text
-packages/core   @felores/kie-ai-core   (private, bundled into both — never published)
-packages/mcp    @felores/kie-ai-mcp-server
-packages/cli    @felores/kie-cli
+packages/core   @kie-ai-tool/core   (private, bundled into both — never published)
+packages/mcp    @kie-ai-tool/mcp
+packages/cli    @kie-ai-tool/cli
 ```
 
 A tool is **one `ToolDef`** under `packages/core/src/tools/<tool>.ts` (single
@@ -33,8 +33,13 @@ one client method, registered in `packages/core/src/tools/index.ts`.
 
 ```bash
 npm run build       # build all packages
-npm test            # core jest
+npm test            # all package tests
 npm run typecheck   # tsc --noEmit
+npm run check       # Biome lint + format
 ```
+
+Work on a branch and open a pull request against
+`tansilandre/kie-ai-tool-mcp-skills-agent`; CI must be green before merge. The
+rules agents follow in this repo are in [`AGENTS.md`](./AGENTS.md).
 
 Keep changes surgical and match the surrounding style.

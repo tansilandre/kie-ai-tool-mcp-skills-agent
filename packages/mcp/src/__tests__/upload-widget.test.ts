@@ -1,9 +1,9 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ToolContext } from "@felores/kie-ai-core";
-import { UPLOAD_WIDGET_URI } from "@felores/kie-ai-core";
 import { afterEach, describe, expect, test } from "@jest/globals";
+import type { ToolContext } from "@kie-ai-tool/core";
+import { UPLOAD_WIDGET_URI } from "@kie-ai-tool/core";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { KieAiMcpServer } from "../index.js";
 

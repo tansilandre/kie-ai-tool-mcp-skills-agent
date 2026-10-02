@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { ToolResult } from "@felores/kie-ai-core";
-import type { TaskDatabase } from "@felores/kie-ai-core/database";
+import type { ToolResult } from "@kie-ai-tool/core";
+import type { TaskDatabase } from "@kie-ai-tool/core/database";
 
 /**
  * In-process durable task engine for official MCP Tasks. A task created via

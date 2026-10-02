@@ -1,5 +1,7 @@
 # Administrator Configuration
 
+> **Fork note:** install commands on this page use the upstream npm packages (`@felores/*`) from [felores/kie-cli-mcp](https://github.com/felores/kie-cli-mcp). This fork is not on npm yet; see the [README](../README.md) to run it from source.
+
 This guide is for system administrators and deployment managers who need to configure organization-wide settings for the Kie.ai MCP Server.
 
 ## Overview

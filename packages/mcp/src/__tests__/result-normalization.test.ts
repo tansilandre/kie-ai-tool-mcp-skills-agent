@@ -1,5 +1,5 @@
-import type { ToolResult } from "@felores/kie-ai-core";
 import { describe, expect, test } from "@jest/globals";
+import type { ToolResult } from "@kie-ai-tool/core";
 import { normalizeToolResult } from "../result-normalization.js";
 
 function textResult(

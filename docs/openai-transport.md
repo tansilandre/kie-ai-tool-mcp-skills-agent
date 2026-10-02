@@ -1,8 +1,10 @@
 # OpenAI-Compatible Transport
 
-`@felores/kie-ai-openai-server` exposes selected Kie.ai image and video models through OpenAI-shaped HTTP routes. Its model discovery is derived from explicit OpenAI adapters resolved against the core catalog and tool registry. Active media tools without a compatible adapter are explicitly excluded. It is designed to be mounted behind an existing loopback security boundary (such as Infini's Canvas Agent) or run as a standalone loopback binary.
+> **Fork note:** install commands on this page use the upstream npm packages (`@felores/*`) from [felores/kie-cli-mcp](https://github.com/felores/kie-cli-mcp). This fork is not on npm yet; see the [README](../README.md) to run it from source.
 
-The transport reuses the private `@felores/kie-ai-core` at build time and bundles it into the published package. The core package is never published and never appears in the public dependency list.
+`@kie-ai-tool/openai-server` exposes selected Kie.ai image and video models through OpenAI-shaped HTTP routes. Its model discovery is derived from explicit OpenAI adapters resolved against the core catalog and tool registry. Active media tools without a compatible adapter are explicitly excluded. It is designed to be mounted behind an existing loopback security boundary (such as Infini's Canvas Agent) or run as a standalone loopback binary.
+
+The transport reuses the private `@kie-ai-tool/core` at build time and bundles it into the published package. The core package is never published and never appears in the public dependency list.
 
 ## Install
 
@@ -17,7 +19,7 @@ The package has no native dependencies and no install scripts.
 ### Embedded router (mounted behind your own auth)
 
 ```ts
-import { createKieOpenAiRouter } from "@felores/kie-ai-openai-server";
+import { createKieOpenAiRouter } from "@kie-ai-tool/openai-server";
 
 const router = createKieOpenAiRouter({
   apiKey: process.env.KIE_AI_API_KEY,

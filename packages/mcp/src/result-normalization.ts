@@ -1,4 +1,4 @@
-import type { ToolResult } from "@felores/kie-ai-core";
+import type { ToolResult } from "@kie-ai-tool/core";
 
 // SDK v2 clients prefer structured results over parsing presentation text. A
 // tool result whose text envelope reports a provider task id exposes it (plus

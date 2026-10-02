@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+- Forked from [felores/kie-cli-mcp](https://github.com/felores/kie-cli-mcp) at `44c7701` as
+  kie-ai-tool-mcp-skills-agent, keeping its full git history. Package names moved from
+  `@felores/*` to `@kie-ai-tool/*` (`core`, `mcp`, `cli`, `openai-server`); binary names are
+  unchanged. Nothing is published to npm yet.
+- New README, `NOTICE.md` with credits, `docs/ROADMAP.md`, and agent rules in `AGENTS.md`.
+  The upstream README is archived in `docs/upstream/`.
+
+Entries below this line are upstream releases of felores/kie-cli-mcp.
+
 ## MCP 5.1.0 / CLI 0.9.0 / OpenAI transport 0.7.0 - 2026-08-25
 
 ### Added

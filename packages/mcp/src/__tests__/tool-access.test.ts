@@ -1,5 +1,5 @@
-import { TOOL_REGISTRY } from "@felores/kie-ai-core";
 import { describe, expect, test } from "@jest/globals";
+import { TOOL_REGISTRY } from "@kie-ai-tool/core";
 import { allowsDirectGeneration, isMcpToolCallable } from "../tool-access.js";
 
 const enabledTools = new Set(TOOL_REGISTRY.map((tool) => tool.name));

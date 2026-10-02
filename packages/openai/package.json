@@ -1,5 +1,5 @@
 {
-  "name": "@felores/kie-ai-openai-server",
+  "name": "@kie-ai-tool/openai-server",
   "version": "0.7.0",
   "description": "OpenAI-compatible HTTP transport for selected Kie.ai image and video models.",
   "type": "module",
@@ -15,7 +15,7 @@
     "kie-ai-openai-server": "dist/bin.js"
   },
   "scripts": {
-    "build": "npm run build -w @felores/kie-ai-core && tsc -p tsconfig.json --emitDeclarationOnly && node build.mjs",
+    "build": "npm run build -w @kie-ai-tool/core && tsc -p tsconfig.json --emitDeclarationOnly && node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "prepack": "npm run test"
@@ -26,11 +26,15 @@
     "image-generation",
     "video-generation"
   ],
-  "author": "felores",
+  "author": "Andre Tansil (https://github.com/tansilandre)",
+  "contributors": [
+    "andrewlwn77 (https://github.com/andrewlwn77)",
+    "felores (https://github.com/felores)"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/felores/kie-cli-mcp.git"
+    "url": "git+https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent.git"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
@@ -46,7 +50,7 @@
     "express": "^4.21.2"
   },
   "devDependencies": {
-    "@felores/kie-ai-core": "*",
+    "@kie-ai-tool/core": "*",
     "@types/jest": "^29.5.8",
     "@types/node": "^20.10.0",
     "esbuild": "^0.24.0",

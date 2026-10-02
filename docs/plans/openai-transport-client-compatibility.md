@@ -4,13 +4,13 @@
 
 - Repository: `kie-cli-mcp`
 - Baseline reviewed: `main` at `6c44ec4`
-- Affected package: `@felores/kie-ai-openai-server` `0.1.1`
+- Affected package: `@kie-ai-tool/openai-server` `0.1.1`
 - Planned package version: `0.2.0`
 - Implementation status: implemented for `0.2.0`
 
 ## Objective
 
-Make `@felores/kie-ai-openai-server` work with Infinite Canvas's native OpenAI image and video requests while preserving compatibility with other OpenAI-shaped clients and every format or mode that the implemented Kie models actually support.
+Make `@kie-ai-tool/openai-server` work with Infinite Canvas's native OpenAI image and video requests while preserving compatibility with other OpenAI-shaped clients and every format or mode that the implemented Kie models actually support.
 
 All implementation is in `kie-cli-mcp`. Infinite Canvas does not need source changes or custom request scripts.
 
@@ -390,7 +390,7 @@ Update:
 
 Version decisions:
 
-- Bump `@felores/kie-ai-openai-server` from `0.1.1` to `0.2.0` because this adds a route and backward-compatible request capabilities.
+- Bump `@kie-ai-tool/openai-server` from `0.1.1` to `0.2.0` because this adds a route and backward-compatible request capabilities.
 - Increment `CONTRACT_VERSION` from `1` to `2`.
 - Do not bump MCP or CLI packages unless their published behavior changes.
 
@@ -414,7 +414,7 @@ npm run typecheck
 npm run build
 npm test
 npm run check
-npm pack -w @felores/kie-ai-openai-server --dry-run
+npm pack -w @kie-ai-tool/openai-server --dry-run
 ```
 
 No live provider task is required for deterministic contract verification. If a valid `KIE_AI_API_KEY` is available, optionally smoke-test one image generation and one video generation after all automated checks pass.

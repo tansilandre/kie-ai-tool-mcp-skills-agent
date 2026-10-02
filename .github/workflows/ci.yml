@@ -45,9 +45,9 @@ jobs:
 
       - name: Verify publishable packages
         run: |
-          npm pack -w @felores/kie-ai-openai-server --dry-run
-          npm pack -w @felores/kie-ai-mcp-server --dry-run
-          npm pack -w @felores/kie-cli --dry-run
+          npm pack -w @kie-ai-tool/openai-server --dry-run
+          npm pack -w @kie-ai-tool/mcp --dry-run
+          npm pack -w @kie-ai-tool/cli --dry-run
 
       - name: Verify patch formatting
         run: git diff --check

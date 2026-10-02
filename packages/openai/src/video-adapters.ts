@@ -1,8 +1,5 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
-import {
-  type KieAiClient,
-  KieAiRequestError,
-} from "@felores/kie-ai-core/client";
+import { type KieAiClient, KieAiRequestError } from "@kie-ai-tool/core/client";
 import type { Request, Response } from "express";
 import { OpenAiHttpError } from "./errors.js";
 import {

@@ -1,7 +1,7 @@
 import type {
   PlanApprovalDecision,
   PreparedGenerationPlan,
-} from "@felores/kie-ai-core";
+} from "@kie-ai-tool/core";
 import type { Server, ServerContext } from "@modelcontextprotocol/server";
 import {
   acceptedContent,

@@ -4,7 +4,7 @@
 
 - Repository: `kie-cli-mcp`
 - Baseline reviewed: `main` at `e14ae99`
-- Affected package: `@felores/kie-ai-openai-server`
+- Affected package: `@kie-ai-tool/openai-server`
 - Baseline OpenAI package version: `0.2.0`
 - Implemented feature version: `0.6.0`
 - Baseline OpenAI contract version: `2`
@@ -568,7 +568,7 @@ Document:
 
 ## Versioning
 
-Phase 1 shipped as `0.3.0`, Phase 2 as `0.4.0`, and Phase 3 as `0.5.0`. Release Phase 4 as `@felores/kie-ai-openai-server@0.6.0`. Keep contract version `3` because Phase 4 adds adapters without changing the HTTP route contract.
+Phase 1 shipped as `0.3.0`, Phase 2 as `0.4.0`, and Phase 3 as `0.5.0`. Release Phase 4 as `@kie-ai-tool/openai-server@0.6.0`. Keep contract version `3` because Phase 4 adds adapters without changing the HTTP route contract.
 
 Update:
 
@@ -589,7 +589,7 @@ npm run typecheck
 npm run build
 npm test
 npm run check
-npm pack -w @felores/kie-ai-openai-server --dry-run
+npm pack -w @kie-ai-tool/openai-server --dry-run
 ```
 
 Add a focused command or test that prints the resolved registry summary:

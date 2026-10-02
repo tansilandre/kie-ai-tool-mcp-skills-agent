@@ -15,8 +15,8 @@ import {
   toolToMarkdown,
   UPLOAD_WIDGET_URI,
   uploadPathForMimeType,
-} from "@felores/kie-ai-core";
-import { TaskDatabase } from "@felores/kie-ai-core/database";
+} from "@kie-ai-tool/core";
+import { TaskDatabase } from "@kie-ai-tool/core/database";
 import {
   CancelTaskRequestSchema,
   GetTaskPayloadRequestSchema,

@@ -2,7 +2,7 @@
 
 **Status:** ✅ implemented (v3.5.0) · **Date:** 2026-06-06 · **SDK:** `@modelcontextprotocol/sdk` ^1.29.0 · **Spec rev:** 2025-11-25
 
-Goal: add a remote **Streamable HTTP** transport to `@felores/kie-ai-mcp-server`
+Goal: add a remote **Streamable HTTP** transport to `@kie-ai-tool/mcp`
 while keeping **stdio as the default**. This is the capability closed/unmerged
 PR #3 (`feat/remote-streamable-http`) tried to add against the pre-monorepo
 layout; this plan reimplements it cleanly in the monorepo.
@@ -17,7 +17,7 @@ layout; this plan reimplements it cleanly in the monorepo.
   `Server` (`this.server`), wires tools/resources/prompts via `setRequestHandler`,
   and `run()` connects **only** `StdioServerTransport` (line ~1162).
 - Core context (`client`, `db`, `getCallbackUrl`, `toolContext`) is built in the
-  constructor from `@felores/kie-ai-core`.
+  constructor from `@kie-ai-tool/core`.
 - `mcp` deps: sdk, sqlite3, zod. **No HTTP framework dependency yet.**
 - Bundling: esbuild bundles core in; `sqlite3` external. Bin `kie-ai-mcp-server`.
 
@@ -75,7 +75,7 @@ docker-compose.coolify.yml   # repo root — Coolify one-click deploy (D5)
    default, `enableDnsRebindingProtection: true` with `allowedHosts`, validate
    `Origin`. Only bind `0.0.0.0` when explicitly configured (with a warning).
 7. **Deployment (D5)**:
-   - `packages/mcp/Dockerfile`: `node:20-alpine`, `npm ci`, `npm run build -w @felores/kie-ai-core && npm run bundle -w @felores/kie-ai-mcp-server`, run `dist/index.js` with `MCP_TRANSPORT=http`, `EXPOSE 3000`, `HEALTHCHECK` curling `/health`. Bind `0.0.0.0` inside the container (it's the explicit-opt-in case) — protection then relies on `allowedHosts` + bearer token, document this.
+   - `packages/mcp/Dockerfile`: `node:20-alpine`, `npm ci`, `npm run build -w @kie-ai-tool/core && npm run bundle -w @kie-ai-tool/mcp`, run `dist/index.js` with `MCP_TRANSPORT=http`, `EXPOSE 3000`, `HEALTHCHECK` curling `/health`. Bind `0.0.0.0` inside the container (it's the explicit-opt-in case) — protection then relies on `allowedHosts` + bearer token, document this.
    - `docker-compose.coolify.yml`: service + `KIE_AI_API_KEY`, `KIE_MCP_HTTP_TOKEN`, `MCP_ALLOWED_HOSTS`, persistent volume for the SQLite task DB (`KIE_AI_DB_PATH`), health probe on `/health`.
    - `docs/DEPLOY_HTTP.md`: how to deploy on Coolify + run locally via Docker + connect a client.
 8. **Test**: MCP Inspector against `http://127.0.0.1:3000/mcp`; verify
@@ -93,5 +93,5 @@ docker-compose.coolify.yml   # repo root — Coolify one-click deploy (D5)
 ## Out of scope (explicit)
 - OAuth 2.0 / RFC 9728 protected-resource-metadata flow (the 2025-11-25 auth spec).
 - Resumability/`eventStore` redelivery (can add later; transport supports it).
-- CLI package (`@felores/kie-cli`) — unaffected; stdio/registry only.
+- CLI package (`@kie-ai-tool/cli`) — unaffected; stdio/registry only.
 - SDK v2 (split packages, RC) — stay on v1.29.x.

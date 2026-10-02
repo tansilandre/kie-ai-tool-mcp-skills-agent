@@ -1,4 +1,4 @@
-import type { TaskDatabase } from "@felores/kie-ai-core/database";
+import type { TaskDatabase } from "@kie-ai-tool/core/database";
 
 export async function approvePlanForSubmission(
   db: Pick<TaskDatabase, "getGenerationPlan" | "approveGenerationPlan">,

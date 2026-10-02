@@ -11,7 +11,7 @@ This document maps Kie.ai platform endpoints to the tools exposed by the server.
 - Track new endpoints worth adding
 - Understand the routing and the grouping strategy (multiple models, one unified tool)
 
-The tools below are shared by both surfaces (`@felores/kie-ai-mcp-server` and the `kie-cli` CLI), generated from one registry.
+The tools below are shared by both surfaces (`@kie-ai-tool/mcp` and the `kie-cli` CLI), generated from one registry.
 
 ---
 

@@ -1,9 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isIP } from "node:net";
-import {
-  type KieAiClient,
-  KieAiRequestError,
-} from "@felores/kie-ai-core/client";
+import { type KieAiClient, KieAiRequestError } from "@kie-ai-tool/core/client";
 import type { Request, Response } from "express";
 import { OpenAiHttpError } from "./errors.js";
 import {

@@ -12,8 +12,8 @@ body:
     attributes:
       label: Which package?
       options:
-        - "@felores/kie-ai-mcp-server (MCP)"
-        - "@felores/kie-cli (CLI)"
+        - "@kie-ai-tool/mcp (MCP)"
+        - "@kie-ai-tool/cli (CLI)"
         - Not sure
     validations:
       required: true
@@ -21,7 +21,7 @@ body:
     id: version
     attributes:
       label: Package version
-      description: "Output of `npm view @felores/kie-ai-mcp-server version` or `kie-cli --version`"
+      description: "Output of `npm view @kie-ai-tool/mcp version` or `kie-cli --version`"
       placeholder: "e.g. mcp 3.4.0 / cli 0.2.0"
     validations:
       required: true

@@ -4,7 +4,7 @@
 
 - Repository: `kie-cli-mcp`
 - Baseline reviewed: `main` at `fc775b3`
-- Affected package: `@felores/kie-ai-openai-server`
+- Affected package: `@kie-ai-tool/openai-server`
 - Baseline package version: `0.6.0`
 - Planned package version: `0.6.1`
 - OpenAI contract version: keep `3`
@@ -300,7 +300,7 @@ Do not promise arbitrary dimensions. The provider still generates one of its dec
 
 ## Versioning
 
-Release as `@felores/kie-ai-openai-server@0.6.1`.
+Release as `@kie-ai-tool/openai-server@0.6.1`.
 
 Keep OpenAI transport contract version `3` because routes, fields, and response envelopes do not change. This is a compatibility bug fix in input normalization.
 
@@ -321,7 +321,7 @@ npm run typecheck
 npm run build
 npm test
 npm run check
-npm pack -w @felores/kie-ai-openai-server --dry-run
+npm pack -w @kie-ai-tool/openai-server --dry-run
 ```
 
 No paid live generation is required. Existing provider evidence already establishes GPT Image 2 `16:9` support; this change only corrects local request normalization. A live 1K smoke test is optional and requires explicit user authorization.

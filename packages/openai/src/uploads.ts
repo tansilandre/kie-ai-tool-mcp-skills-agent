@@ -1,5 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import type { KieAiClient } from "@felores/kie-ai-core/client";
+import type { KieAiClient } from "@kie-ai-tool/core/client";
 
 export const SUPPORTED_IMAGE_MIME_TYPES = [
   "image/jpeg",
