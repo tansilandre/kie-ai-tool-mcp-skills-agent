@@ -25,7 +25,8 @@
     "pricing:refresh": "node scripts/refresh-pricing.mjs",
     "pricing:refresh:test": "node --test scripts/__tests__/refresh-pricing.test.mjs",
     "bundle:plugin": "node scripts/bundle-plugin.mjs",
-    "skills:check": "node scripts/validate-skills.mjs"
+    "skills:check": "node scripts/validate-skills.mjs",
+    "pack:check": "node scripts/check-pack.mjs"
   },
   "author": "Andre Tansil (https://github.com/tansilandre)",
   "contributors": [

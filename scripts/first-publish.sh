@@ -34,6 +34,7 @@ echo "Building and testing..."
 npm ci --no-audit --no-fund
 npm run build
 npm test
+npm run pack:check
 
 for pkg in "${PACKAGES[@]}"; do
   dir="${pkg%%:*}"
