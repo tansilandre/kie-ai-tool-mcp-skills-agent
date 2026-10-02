@@ -376,8 +376,10 @@ export class TaskDatabase {
   }
 
   /**
-   * After submission: link each reserved item to its task, and release the
-   * reservation of items kie.ai never accepted (no task, nothing charged).
+   * After submission: link each reserved item to its task so the real charge
+   * can replace the estimate later. Items without a task id keep their
+   * reservation: a timeout can hide a task kie.ai did create, so releasing it
+   * would let the daily cap undercount. It ages out after 24 hours.
    */
   settlePlanSpend(
     planId: string,
@@ -386,12 +388,8 @@ export class TaskDatabase {
     const link = this.db.prepare(
       `UPDATE spend_ledger SET task_id = ? WHERE plan_id = ? AND item_index = ?`,
     );
-    const release = this.db.prepare(
-      `UPDATE spend_ledger SET estimated = 0, actual = 0 WHERE plan_id = ? AND item_index = ?`,
-    );
     for (const result of results) {
       if (result.taskId) link.run(result.taskId, planId, result.index);
-      else release.run(planId, result.index);
     }
   }
 

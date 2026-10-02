@@ -20,16 +20,28 @@ function parseToolResult(result: ToolResult): unknown {
   }
 }
 
-function extractTaskId(result: unknown): string | undefined {
+/**
+ * The task id a tool reported, in any of the shapes the tools use:
+ * `task_id` / `taskId` at the top, or inside `data` / `response.data`
+ * (gemini_omni returns `{ data: { taskId } }`). A missed id would make a
+ * paid task look like no task, so check them all.
+ */
+export function extractTaskId(result: unknown): string | undefined {
   if (!result || typeof result !== "object") return undefined;
-  const data = result as {
-    task_id?: unknown;
-    response?: { data?: { taskId?: unknown } };
-  };
-  if (typeof data.task_id === "string") return data.task_id;
-  return typeof data.response?.data?.taskId === "string"
-    ? data.response.data.taskId
-    : undefined;
+  const record = result as Record<string, unknown>;
+  const nested = [
+    record,
+    record.data,
+    (record.response as Record<string, unknown> | undefined)?.data,
+  ];
+  for (const candidate of nested) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const fields = candidate as Record<string, unknown>;
+    for (const key of ["task_id", "taskId"]) {
+      if (typeof fields[key] === "string" && fields[key]) return fields[key];
+    }
+  }
+  return undefined;
 }
 
 function resultError(
@@ -76,6 +88,7 @@ export const submitMediaGenerationTool: ToolDef<
   async run(args, ctx: ToolContext): Promise<ToolResult> {
     try {
       const { planId } = SubmitMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError) throw new Error(ctx.spendPolicyError);
       const stored = await ctx.db.getGenerationPlan(planId);
       if (!stored) throw new Error("Prepared plan not found.");
       const { plan } = stored;
@@ -184,6 +197,7 @@ export const submitMediaGenerationTool: ToolDef<
         recordWarning = `The tasks below were sent to kie.ai, but saving the outcome locally failed (${error instanceof Error ? error.message : String(error)}). Do not submit this work again; follow the task IDs below.`;
       }
       const created = results.filter((result) => result.taskId).length;
+      const unsure = results.filter((result) => !result.taskId).length;
       const body = {
         success: !failed,
         planId,
@@ -192,10 +206,16 @@ export const submitMediaGenerationTool: ToolDef<
         ...(failed
           ? {
               error: "One or more plan items failed.",
-              note:
+              note: [
                 created > 0
-                  ? `${created} task(s) were created and will be charged. Wait for them with wait_for_task; do not resubmit them. Only the failed items need a new plan.`
-                  : "No task was created, so nothing was charged.",
+                  ? `${created} task(s) were created and will be charged: wait for them with wait_for_task and never resubmit them.`
+                  : "",
+                unsure > 0
+                  ? `${unsure} item(s) returned no task id. kie.ai may have rejected them (not charged) or the request may have timed out after kie.ai created a task. Their estimate stays booked against the daily cap. Check list_tasks and the kie.ai logs (https://kie.ai/logs) before planning them again.`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" "),
             }
           : {}),
         ...(recordWarning ? { warning: recordWarning } : {}),

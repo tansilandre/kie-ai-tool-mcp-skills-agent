@@ -132,9 +132,20 @@ Credits are real money (1 credit is about US$0.005), so every paid generation go
 counting what kie.ai actually charged where it reports it. A plan with an unknown price needs a
 person to accept that explicitly, and auto mode never approves one.
 
-`chat` mode trusts the agent to report your answer honestly; it prevents accidents, not a
-determined agent. For agents, the strongest limit is a kie.ai API key with its own credit limit.
-`KIE_AI_ALLOW_DIRECT_GENERATION=true` turns plans off entirely; leave it off.
+What these controls can and can't do:
+
+- They stop accidents and keep an honest agent inside your limits. They don't stop a determined
+  agent: in `chat` mode it relays your answer, and an agent with a shell can change the CLI's
+  environment or call kie.ai with your key directly. For agents, the hard limit is a kie.ai API key
+  with its own credit limit.
+- An item with an unknown price counts as a full plan (`KIE_AI_MAX_CREDITS_PER_PLAN`) until kie.ai
+  reports its real charge, which can be higher. Estimates are upper bounds; when kie.ai prices a
+  model by characters, tokens, megapixels or input media, the estimate is "unknown" instead.
+- An item that returns no task id (rejected, or timed out) keeps its estimate booked for 24 hours,
+  since a timeout can hide a task kie.ai did create.
+- The ledger lives in the local task database, so separate machines or databases don't share it.
+- The OpenAI-compatible server in `packages/openai` is outside these controls.
+- `KIE_AI_ALLOW_DIRECT_GENERATION=true` turns plans off entirely; leave it off.
 
 ## Configuration
 

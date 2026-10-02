@@ -14,6 +14,7 @@ export const approveMediaGenerationTool: ToolDef<
   async run(args, ctx: ToolContext): Promise<ToolResult> {
     try {
       const request = ApproveMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError) throw new Error(ctx.spendPolicyError);
       const policy = ctx.spendPolicy ?? DEFAULT_SPEND_POLICY;
       if (policy.approval !== "chat") {
         throw new Error(

@@ -85,3 +85,21 @@ Exact rate-card formulas still win when they exist. Every finished task records
 - The price parser on every catalog price text saved as a fixture, never below the real
   charge seen live (gpt-image-2 1K: 6 credits; Seedance 1.5 Pro 480p 4 s silent: 7).
 - CLI: no terminal + `form` mode refuses; a wrong code refuses; the right code submits once.
+
+## Review findings (2026-10-02)
+
+An adversarial review of the first version found, and this version fixes:
+
+- Gemini Omni's task id (`{ data: { taskId } }`) wasn't read, so its spend was booked as 0.
+  Every task-id shape is read now, and an item without a task id keeps its reservation.
+- The output count took the first count field; `{max_images: 6, n: 1}` priced one image. It is
+  the highest of all count fields now, plus the schema's default.
+- The estimator undercounted prices per 1,000 characters, per megapixel, per input, "× (input +
+  output)", "per video second", full-width "／s", duration tiers and 8K priced only in dollars.
+  Such texts are "unknown" now (79 of 218 catalog models at 720p / 5 s); the rest are checked
+  against kie.ai's full price list in tests.
+- A charge reported mid-run could erase a reservation; only finished tasks record a charge.
+- Bad spend settings stopped the MCP server from starting; now paid steps refuse with the reason.
+- Messages no longer tell an agent which environment variable bypasses an approval.
+
+Accepted limits are listed in the README under "How spending works".

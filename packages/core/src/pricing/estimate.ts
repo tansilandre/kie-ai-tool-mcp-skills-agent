@@ -37,11 +37,39 @@ interface PriceMention {
 }
 
 const PER_SECOND =
-  /^\s*(?:\([^)]*\)\s*)?(?:\/\s*s(?:ec(?:ond)?)?\b|per\s+(?:1\s+)?sec(?:ond)?\b)/i;
+  /^\s*(?:\([^)]*\)\s*)?(?:\/\s*s(?:ec(?:ond)?)?\b|per\s+(?:1\s+|video\s+)?sec(?:ond)?\b)/i;
+
+/**
+ * Pricing the parser can't turn into a safe upper bound: per characters,
+ * tokens, words, megapixels or minutes; charges for input media; formulas
+ * like "Unit Price × (Input + Output)"; "per 5 seconds". Any of these makes
+ * the estimate unknown rather than a number that might be too low.
+ */
+const UNSUPPORTED = [
+  /per\s+[\d,.]*\s*(?:k\s+)?(?:characters?|chars?|words?|tokens?)\b/i,
+  /\btokens?\b/i,
+  /mega\s?pixels?|\bper\s+MP\b/i,
+  /per\s+minute|\/\s*min\b/i,
+  /per\s+\d+\s*(?:seconds?|s)\b/i,
+  /\binput\s+(?:images?|videos?|audio|duration)\b|\b(?:image|video|audio)\s+input\b/i,
+  /\badditional\s+(?:images?|inputs?)\b/i,
+  /\(\s*input|input\s*\+|\+\s*input/i,
+  /\bper\s+(?:layer|reference|input)\b/i,
+];
+
+/** Full-width punctuation and "720 p" spacing, as some kie.ai texts use. */
+function normalizeText(text: string): string {
+  return text
+    .replace(/／/g, "/")
+    .replace(/，/g, ", ")
+    .replace(/：/g, ": ")
+    .replace(/。/g, ". ")
+    .replace(/(\d)\s+p\b/gi, "$1p");
+}
 
 function mentions(text: string): PriceMention[] {
   const found: PriceMention[] = [];
-  const credit = /(\d+(?:\.\d+)?)\s*credits?\b/gi;
+  const credit = /(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*credits?\b/gi;
   for (let m = credit.exec(text); m; m = credit.exec(text)) {
     const after = text.slice(m.index + m[0].length, m.index + m[0].length + 40);
     const before = text.slice(Math.max(0, m.index - 60), m.index);
@@ -50,10 +78,30 @@ function mentions(text: string): PriceMention[] {
       /(?:per|each|every|1)\s+second[^.;\n]*$/i.test(before) ||
       /\bper\s+second\b/i.test(after.slice(0, 30));
     found.push({
-      credits: Number(m[1]),
+      credits: Number(m[1].replace(/,/g, "")),
       index: m.index,
       perSecond,
     });
+  }
+  // "Generating 1 second of video costs about 2.8 credits at 480p, 6
+  // credits at 720p and 14 credits at 1080p": every price in a sentence
+  // that is about one second is per second, not only the nearest one.
+  const sentences = text.split(/(?<!\d)[.;\n](?!\d)/);
+  let offset = 0;
+  for (const sentence of sentences) {
+    const start = text.indexOf(sentence, offset);
+    const end = start + sentence.length;
+    offset = end;
+    if (
+      /\b(?:1|one|each|every|per)\s+(?:video\s+)?second\b/i.test(sentence) &&
+      !/\bper\s+(?:video|image|clip|generation)\b/i.test(sentence)
+    ) {
+      for (const mention of found) {
+        if (mention.index >= start && mention.index < end) {
+          mention.perSecond = true;
+        }
+      }
+    }
   }
   // Which resolution does each price belong to? kie.ai writes it both ways:
   // "6 credits ($0.03) for 1 K" / "2 credits at 480p" (after the number) and
@@ -88,20 +136,22 @@ function mentions(text: string): PriceMention[] {
 }
 
 export function estimateFromPriceText(
-  text: string | undefined,
+  rawText: string | undefined,
   request: {
     resolution?: string;
     durationSeconds?: number;
     outputCount?: number;
   },
 ): CreditEstimate {
-  if (!text?.trim())
+  if (!rawText?.trim())
     return { status: "unknown", basis: "kie.ai lists no price" };
-  if (
-    /\btokens?\b/i.test(text) &&
-    !/credits?\s*(?:per|\/)\s*(?:image|video|sec|s\b)/i.test(text)
-  ) {
-    return { status: "unknown", basis: "priced per token" };
+  const text = normalizeText(rawText);
+  if (UNSUPPORTED.some((pattern) => pattern.test(text))) {
+    return {
+      status: "unknown",
+      basis:
+        "kie.ai prices this by a unit or formula the estimate can't bound (characters, tokens, megapixels, input media or similar); read its price text",
+    };
   }
   if (/\bis free\b/i.test(text) && !/\d\s*credits?/i.test(text)) {
     return {
@@ -120,11 +170,39 @@ export function estimateFromPriceText(
   const wanted = request.resolution
     ? normalizeResolution(request.resolution)
     : undefined;
-  const matching = wanted ? all.filter((m) => m.resolution === wanted) : [];
+  // "5s at 720p costs 12 credits, 10s at 720p or 5s at 1080p cost 30": the
+  // price depends on duration too, so pairing by resolution can pick a
+  // cheaper tier. Use the highest listed price instead.
+  // Upscale prices go from one resolution to another ("480P → 1080P"),
+  // so pairing on one resolution is ambiguous in the same way.
+  const durationTiers =
+    /\b\d+\s?s\b/i.test(text.replace(/\/\s*s(?:ec(?:ond)?)?\b/gi, "")) ||
+    /→|->/.test(text);
+  const matching =
+    wanted && !durationTiers ? all.filter((m) => m.resolution === wanted) : [];
+  if (wanted && !durationTiers && matching.length === 0) {
+    const listed = [...text.matchAll(RESOLUTION)].some(
+      (token) => normalizeResolution(token[0]) === wanted,
+    );
+    if (listed) {
+      // The requested resolution is listed, but not with a credit price
+      // (e.g. only in dollars): any other number could be too low.
+      return {
+        status: "unknown",
+        basis: `kie.ai lists ${wanted} without a credit price`,
+      };
+    }
+  }
   const pool = matching.length > 0 ? matching : all;
   const perSecond = pool.some((m) => m.perSecond);
   const top = Math.max(...pool.map((m) => m.credits));
   const outputs = Math.max(1, request.outputCount ?? 1);
+  const where =
+    matching.length > 0
+      ? ` at ${wanted}`
+      : durationTiers
+        ? " (highest listed price; it depends on duration)"
+        : " (highest listed price)";
   if (perSecond) {
     if (!request.durationSeconds || request.durationSeconds <= 0) {
       return {
@@ -135,13 +213,13 @@ export function estimateFromPriceText(
     return {
       status: "estimated",
       credits: round(top * request.durationSeconds * outputs),
-      basis: `up to ${top} credits/s × ${request.durationSeconds} s${outputs > 1 ? ` × ${outputs}` : ""}${matching.length > 0 ? ` at ${wanted}` : " (highest listed rate)"}`,
+      basis: `up to ${top} credits/s × ${request.durationSeconds} s${outputs > 1 ? ` × ${outputs}` : ""}${where}`,
     };
   }
   return {
     status: "estimated",
     credits: round(top * outputs),
-    basis: `up to ${top} credits${outputs > 1 ? ` × ${outputs}` : ""}${matching.length > 0 ? ` at ${wanted}` : " (highest listed price)"}`,
+    basis: `up to ${top} credits${outputs > 1 ? ` × ${outputs}` : ""}${where}`,
   };
 }
 

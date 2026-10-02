@@ -25,8 +25,18 @@ export const DEFAULT_SPEND_POLICY: SpendPolicy = {
   autoApproveCredits: 0,
 };
 
-function numberFromEnv(name: string, fallback: number): number {
+/**
+ * An environment value, or undefined when it is empty or a placeholder a
+ * host never filled in (a plugin setting left as "${user_config.x}").
+ */
+export function envSetting(name: string): string | undefined {
   const raw = process.env[name]?.trim();
+  if (!raw || /^\$\{[^}]*\}$/.test(raw)) return undefined;
+  return raw;
+}
+
+function numberFromEnv(name: string, fallback: number): number {
+  const raw = envSetting(name);
   if (!raw) return fallback;
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) {
@@ -37,8 +47,26 @@ function numberFromEnv(name: string, fallback: number): number {
   return value;
 }
 
+/**
+ * For servers: never throw at startup (a server that exits shows up only as
+ * "failed to connect"). A bad setting becomes an error every paid step
+ * reports, and nothing can be spent until it is fixed.
+ */
+export function spendPolicyOrError(): {
+  policy?: SpendPolicy;
+  error?: string;
+} {
+  try {
+    return { policy: spendPolicyFromEnv() };
+  } catch (error) {
+    return {
+      error: `The spend settings are invalid, so nothing can be spent until the person who runs the server fixes them: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
 export function spendPolicyFromEnv(): SpendPolicy {
-  const mode = (process.env.KIE_AI_APPROVAL ?? "").trim().toLowerCase();
+  const mode = (envSetting("KIE_AI_APPROVAL") ?? "").toLowerCase();
   if (mode && mode !== "form" && mode !== "chat" && mode !== "auto") {
     throw new Error(
       `KIE_AI_APPROVAL must be form, chat or auto (got "${process.env.KIE_AI_APPROVAL}").`,

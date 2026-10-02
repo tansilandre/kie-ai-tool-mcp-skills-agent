@@ -1,4 +1,5 @@
 import {
+  CATALOG_COUNT_FIELDS,
   type PlanItemDetails,
   prepareGenerationPlan,
 } from "../generation-plan.js";
@@ -213,6 +214,12 @@ async function catalogDetails(
     >;
     details.push({
       priceInputs: priceInputsFor(input, fields),
+      defaultOutputCount: Math.max(
+        1,
+        ...CATALOG_COUNT_FIELDS.map((key) =>
+          Number(fields[key]?.default),
+        ).filter((n) => Number.isFinite(n)),
+      ),
       // kie.ai's listing says what the model offers, not what this request
       // does (Seedance 1.5 Pro is listed only as image-to-video but also does
       // text-to-video), so label it as the listing.
@@ -237,6 +244,7 @@ export const prepareMediaGenerationTool: ToolDef<
   async run(args, ctx: ToolContext): Promise<ToolResult> {
     try {
       const request = PrepareMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError) throw new Error(ctx.spendPolicyError);
       // Don't ask a human to approve a price for a plan that can't run.
       if (
         typeof ctx.client.hasApiKey === "function" &&
@@ -303,8 +311,8 @@ export const prepareMediaGenerationTool: ToolDef<
         return pendingResult(
           plan,
           policy.approval === "auto"
-            ? `This plan is above the auto-approval limit (${policy.autoApproveCredits} credits) or has an unknown price, and this app can't show an approval form. A person must approve it: set KIE_AI_APPROVAL=chat, or use the CLI in a terminal.`
-            : "This app can't show an approval form. A person can approve the plan in a terminal with the CLI, or the person who runs the server can set KIE_AI_APPROVAL=chat so the agent relays their yes.",
+            ? `This plan is above the auto-approval limit (${policy.autoApproveCredits} credits) or has an unknown price, and this app can't show an approval form, so a person can't approve it here. Choose cheaper settings, or ask the person who runs the server to change the approval mode.`
+            : "This app can't show an approval form, so this plan can't be approved here. The person who runs the server can switch it to chat approval (KIE_AI_APPROVAL=chat), where the agent shows the plan and relays their yes.",
         );
       }
 

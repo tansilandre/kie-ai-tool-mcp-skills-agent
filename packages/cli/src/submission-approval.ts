@@ -126,8 +126,8 @@ export async function approvePlanForSubmission(
   if (policy.approval !== "chat") {
     throw new Error(
       policy.approval === "form"
-        ? "In form approval mode a person approves in a terminal: run this submit command yourself in a terminal and type the code it shows. To let an agent relay your yes instead, the person who runs the CLI can set KIE_AI_APPROVAL=chat."
-        : "This plan wasn't approved automatically (it is above KIE_AI_AUTO_APPROVE_CREDITS or its price is unknown). A person must approve it in a terminal, or with KIE_AI_APPROVAL=chat.",
+        ? "In form approval mode a person approves in a terminal: run this submit command yourself in a terminal and type the code it shows. (Other approval modes are described in the README.)"
+        : "This plan wasn't approved automatically (it is above the auto-approve limit or its price is unknown). A person must approve it by running this submit command in a terminal.",
     );
   }
   if (args.approve !== args.planId) {

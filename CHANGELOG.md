@@ -18,7 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   last of the budget can't both run. A spend ledger counts real charges where kie.ai reports
   them. The Claude Code plugin offers all of these as settings.
 - Upper-bound price estimates from kie.ai's price text for `run_model` plans (resolution,
-  duration and output count aware); exact formulas still win.
+  duration and output count aware); exact formulas still win. Prices by characters, tokens,
+  megapixels or input media are reported as unknown rather than guessed.
 - Claude Code plugin and marketplace in the repo root (`/plugin marketplace add
   tansilandre/kie-ai-tool-mcp-skills-agent`, `/plugin install kie@kie-ai-tool`). It asks for the
   kie.ai key once and stores it in secure storage, falling back to `KIE_API_KEY`.

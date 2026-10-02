@@ -197,7 +197,7 @@ function resolveModel(tool: string, parsed: Record<string, unknown>): string {
 }
 
 // Output-count fields that catalog models use inside `input`.
-const CATALOG_COUNT_FIELDS = [
+export const CATALOG_COUNT_FIELDS = [
   "n",
   "num_images",
   "num_outputs",
@@ -206,6 +206,20 @@ const CATALOG_COUNT_FIELDS = [
   "batch_size",
   "count",
 ];
+
+/**
+ * For catalog models: the highest value of any output-count field, numbers
+ * or numeric strings. Taking the first match would let `{max_images: 6,
+ * n: 1}` be priced as one image.
+ */
+function highestCount(input: Record<string, unknown>): number {
+  let highest = 1;
+  for (const key of CATALOG_COUNT_FIELDS) {
+    const count = Number(input[key]);
+    if (Number.isFinite(count) && count > highest) highest = Math.ceil(count);
+  }
+  return highest;
+}
 
 function resolveOutputCount(
   args: Record<string, unknown>,
@@ -239,6 +253,8 @@ export interface PlanItemDetails {
   priceNote?: string;
   /** Request facts the price text depends on, for an upper-bound estimate. */
   priceInputs?: { resolution?: string; durationSeconds?: number };
+  /** The schema's default output count, used when the request names none. */
+  defaultOutputCount?: number;
   warnings?: string[];
 }
 
@@ -297,9 +313,9 @@ export function prepareGenerationPlan(
     const mode = details?.mode ?? resolveGenerationMode(requested.tool, parsed);
     const outputCount =
       requested.tool === "run_model"
-        ? resolveOutputCount(
-            (parsed.input ?? {}) as Record<string, unknown>,
-            CATALOG_COUNT_FIELDS,
+        ? Math.max(
+            highestCount((parsed.input ?? {}) as Record<string, unknown>),
+            details?.defaultOutputCount ?? 1,
           )
         : resolveOutputCount(parsed);
     const quoted = priceRequest(

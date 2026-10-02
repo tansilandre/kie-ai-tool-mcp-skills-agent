@@ -50,11 +50,65 @@ describe("estimateFromPriceText", () => {
       48,
       undefined,
     ],
+    // Found by review: full-width "／s", "per video second", one-second
+    // sentences, duration tiers.
+    [
+      "wan/2-2-a14b-speech-to-video-turbo",
+      { resolution: "720p", durationSeconds: 5 },
+      120,
+      120,
+    ],
+    [
+      "wan/2-2-a14b-text-to-video-turbo",
+      { resolution: "720p", durationSeconds: 5 },
+      80,
+      80,
+    ],
+    [
+      "bytedance/v1-pro-text-to-video",
+      { resolution: "720p", durationSeconds: 5 },
+      30,
+      30,
+    ],
+    ["runway", { resolution: "720p", durationSeconds: 10 }, 30, 30],
   ] as const)("%s %j is at most %d", (model, request, bound, live) => {
     const estimate = estimateFromPriceText(PRICES[model] ?? undefined, request);
     expect(estimate).toMatchObject({ status: "estimated", credits: bound });
     if (live !== undefined)
       expect(estimate.credits).toBeGreaterThanOrEqual(live);
+  });
+
+  test.each([
+    ["elevenlabs/text-to-speech-multilingual-v2", {}],
+    ["qwen/text-to-image", { resolution: "4K" }],
+    ["topaz/image-upscale", { resolution: "8K" }],
+    ["bytedance/seedance-2", { resolution: "480p", durationSeconds: 15 }],
+    ["wan/3-0-video", { resolution: "1080p", durationSeconds: 10 }],
+    ["happyhorse/video-edit", { resolution: "1080p", durationSeconds: 10 }],
+    ["minimax-h3/text-to-video", { resolution: "2K", durationSeconds: 10 }],
+    ["seedream/5-pro-image-to-image", { resolution: "1K" }],
+  ] as const)(
+    "%s %j is unknown: its price has a unit or formula an estimate can't bound",
+    (model, request) => {
+      expect(
+        estimateFromPriceText(PRICES[model] ?? undefined, request).status,
+      ).toBe("unknown");
+    },
+  );
+
+  test("reads thousands separators", () => {
+    expect(estimateFromPriceText("1,000 credits per video", {})).toMatchObject({
+      status: "estimated",
+      credits: 1000,
+    });
+  });
+
+  test("a resolution-to-resolution price list takes its highest price", () => {
+    expect(
+      estimateFromPriceText(PRICES["grok-imagine/upscale"] ?? undefined, {
+        resolution: "720p",
+      }).credits,
+    ).toBe(30);
   });
 
   test("a per-second price without a duration is unknown, not a guess", () => {
@@ -213,7 +267,7 @@ describe("spend ledger", () => {
     expect(db.spentSince(new Date(0).toISOString(), 150)).toBe(230);
   });
 
-  test("an item kie.ai never accepted is released", async () => {
+  test("an item without a task id keeps its reservation (a timeout can hide a real task)", async () => {
     const plan = await approved(planOf([50, 50]));
     db.claimGenerationPlanWithinBudget(
       plan.id,
@@ -222,7 +276,7 @@ describe("spend ledger", () => {
       budget([50, 50]),
     );
     db.settlePlanSpend(plan.id, [{ index: 0, taskId: "t-1" }, { index: 1 }]);
-    expect(db.spentSince(new Date(0).toISOString(), 150)).toBe(50);
+    expect(db.spentSince(new Date(0).toISOString(), 150)).toBe(100);
   });
 
   test("an unknown-price item counts as a whole plan until its real charge arrives", async () => {
@@ -479,5 +533,97 @@ describe("submit and the daily cap", () => {
     );
     expect(ok.success).toBe(true);
     expect(db.spentSince(new Date(0).toISOString(), 150)).toBe(4);
+  });
+});
+
+describe("review fixes", () => {
+  test("the output count is the highest of all count fields, numbers or strings", async () => {
+    const { runModelTool } = await import("../tools/run_model.js");
+    const plan = prepareGenerationPlan(
+      [
+        {
+          tool: "run_model",
+          args: { model: "m", input: { max_images: 6, n: "1" } },
+        },
+      ],
+      new Map([["run_model", runModelTool]]),
+      { itemDetails: [{ priceNote: "5 credits per image" }] },
+    );
+    expect(plan.items[0].outputCount).toBe(6);
+    expect(plan.items[0].price).toMatchObject({
+      status: "estimated",
+      credits: 30,
+    });
+  });
+
+  test("a task id inside data (gemini_omni's shape) is found, so its spend is linked", async () => {
+    const { extractTaskId } = await import(
+      "../tools/submit_media_generation.js"
+    );
+    expect(extractTaskId({ success: true, data: { taskId: "omni-1" } })).toBe(
+      "omni-1",
+    );
+    expect(extractTaskId({ task_id: "t" })).toBe("t");
+    expect(extractTaskId({ response: { data: { taskId: "r" } } })).toBe("r");
+    expect(extractTaskId({ success: false })).toBeUndefined();
+  });
+
+  test("a charge reported before the task ends doesn't replace the reservation", async () => {
+    const { getTaskStatusTool } = await import("../tools/get_task_status.js");
+    const plan = await approved(planOf([90]));
+    db.claimGenerationPlanWithinBudget(plan.id, plan.requestHash, "test", {
+      itemEstimates: [90],
+      maxPerDay: 600,
+      unknownPlaceholder: 150,
+    });
+    db.settlePlanSpend(plan.id, [{ index: 0, taskId: "running-1" }]);
+    await db.createTask({
+      task_id: "running-1",
+      api_type: "market:m",
+      status: "pending",
+    });
+    const client = {
+      getTaskStatus: async () => ({
+        code: 200,
+        msg: "success",
+        data: { taskId: "running-1", state: "generating", creditsConsumed: 0 },
+      }),
+    };
+    await getTaskStatusTool.run(
+      { task_id: "running-1" },
+      context(DEFAULT_SPEND_POLICY, {
+        client: client as unknown as ToolContext["client"],
+      }),
+    );
+    expect(db.spentSince(new Date(0).toISOString(), 150)).toBe(90);
+  });
+
+  test("bad spend settings refuse paid steps instead of crashing", async () => {
+    const { spendPolicyOrError, envSetting } = await import(
+      "../spend-policy.js"
+    );
+    const saved = process.env.KIE_AI_MAX_CREDITS_PER_DAY;
+    process.env.KIE_AI_MAX_CREDITS_PER_DAY = "abc";
+    try {
+      expect(spendPolicyOrError().error).toContain(
+        "KIE_AI_MAX_CREDITS_PER_DAY",
+      );
+    } finally {
+      if (saved === undefined) delete process.env.KIE_AI_MAX_CREDITS_PER_DAY;
+      else process.env.KIE_AI_MAX_CREDITS_PER_DAY = saved;
+    }
+    process.env.KIE_TEST_PLACEHOLDER = "${user_config.approval_mode}";
+    expect(envSetting("KIE_TEST_PLACEHOLDER")).toBeUndefined();
+    delete process.env.KIE_TEST_PLACEHOLDER;
+
+    const body = read(
+      await prepareMediaGenerationTool.run(
+        { items: [cheapItem] },
+        context(DEFAULT_SPEND_POLICY, {
+          spendPolicyError: "The spend settings are invalid",
+        }),
+      ),
+    );
+    expect(body.error).toContain("spend settings are invalid");
   });
 });

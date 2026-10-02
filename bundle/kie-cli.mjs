@@ -1803,17 +1803,16 @@ var TaskDatabase = class {
     }
   }
   /**
-   * After submission: link each reserved item to its task, and release the
-   * reservation of items kie.ai never accepted (no task, nothing charged).
+   * After submission: link each reserved item to its task so the real charge
+   * can replace the estimate later. Items without a task id keep their
+   * reservation: a timeout can hide a task kie.ai did create, so releasing it
+   * would let the daily cap undercount. It ages out after 24 hours.
    */
   settlePlanSpend(planId, results) {
     const link = this.db.prepare(`UPDATE spend_ledger SET task_id = ? WHERE plan_id = ? AND item_index = ?`);
-    const release = this.db.prepare(`UPDATE spend_ledger SET estimated = 0, actual = 0 WHERE plan_id = ? AND item_index = ?`);
     for (const result of results) {
       if (result.taskId)
         link.run(result.taskId, planId, result.index);
-      else
-        release.run(planId, result.index);
     }
   }
   /** Records what kie.ai actually charged for a task, when it reports it. */
@@ -1842,8 +1841,14 @@ var DEFAULT_SPEND_POLICY = {
   maxCreditsPerDay: 600,
   autoApproveCredits: 0
 };
-function numberFromEnv(name, fallback) {
+function envSetting(name) {
   const raw = process.env[name]?.trim();
+  if (!raw || /^\$\{[^}]*\}$/.test(raw))
+    return void 0;
+  return raw;
+}
+function numberFromEnv(name, fallback) {
+  const raw = envSetting(name);
   if (!raw)
     return fallback;
   const value = Number(raw);
@@ -1853,7 +1858,7 @@ function numberFromEnv(name, fallback) {
   return value;
 }
 function spendPolicyFromEnv() {
-  const mode = (process.env.KIE_AI_APPROVAL ?? "").trim().toLowerCase();
+  const mode = (envSetting("KIE_AI_APPROVAL") ?? "").toLowerCase();
   if (mode && mode !== "form" && mode !== "chat" && mode !== "auto") {
     throw new Error(`KIE_AI_APPROVAL must be form, chat or auto (got "${process.env.KIE_AI_APPROVAL}").`);
   }
@@ -17337,6 +17342,8 @@ var approveMediaGenerationTool = {
   async run(args, ctx) {
     try {
       const request = ApproveMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError)
+        throw new Error(ctx.spendPolicyError);
       const policy = ctx.spendPolicy ?? DEFAULT_SPEND_POLICY;
       if (policy.approval !== "chat") {
         throw new Error(policy.approval === "form" ? "This server is in form approval mode: the person approves in the app's form or in the CLI's terminal prompt, not through this tool." : "This server is in auto approval mode: plans within the limit are approved automatically, and others need a person in form or chat mode.");
@@ -18247,7 +18254,7 @@ var getTaskStatusTool = {
             error_message: errorMessage,
             credits_consumed: creditsConsumed
           });
-          if (typeof creditsConsumed === "number") {
+          if (typeof creditsConsumed === "number" && (status === "completed" || status === "failed")) {
             ctx.db.recordActualCredits(task_id, creditsConsumed);
           }
         }
@@ -19582,19 +19589,47 @@ function normalizeResolution(value) {
     return `${k[1]}k`;
   return void 0;
 }
-var PER_SECOND = /^\s*(?:\([^)]*\)\s*)?(?:\/\s*s(?:ec(?:ond)?)?\b|per\s+(?:1\s+)?sec(?:ond)?\b)/i;
+var PER_SECOND = /^\s*(?:\([^)]*\)\s*)?(?:\/\s*s(?:ec(?:ond)?)?\b|per\s+(?:1\s+|video\s+)?sec(?:ond)?\b)/i;
+var UNSUPPORTED = [
+  /per\s+[\d,.]*\s*(?:k\s+)?(?:characters?|chars?|words?|tokens?)\b/i,
+  /\btokens?\b/i,
+  /mega\s?pixels?|\bper\s+MP\b/i,
+  /per\s+minute|\/\s*min\b/i,
+  /per\s+\d+\s*(?:seconds?|s)\b/i,
+  /\binput\s+(?:images?|videos?|audio|duration)\b|\b(?:image|video|audio)\s+input\b/i,
+  /\badditional\s+(?:images?|inputs?)\b/i,
+  /\(\s*input|input\s*\+|\+\s*input/i,
+  /\bper\s+(?:layer|reference|input)\b/i
+];
+function normalizeText(text) {
+  return text.replace(/／/g, "/").replace(/，/g, ", ").replace(/：/g, ": ").replace(/。/g, ". ").replace(/(\d)\s+p\b/gi, "$1p");
+}
 function mentions(text) {
   const found = [];
-  const credit = /(\d+(?:\.\d+)?)\s*credits?\b/gi;
+  const credit = /(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*credits?\b/gi;
   for (let m = credit.exec(text); m; m = credit.exec(text)) {
     const after = text.slice(m.index + m[0].length, m.index + m[0].length + 40);
     const before = text.slice(Math.max(0, m.index - 60), m.index);
     const perSecond = PER_SECOND.test(after) || /(?:per|each|every|1)\s+second[^.;\n]*$/i.test(before) || /\bper\s+second\b/i.test(after.slice(0, 30));
     found.push({
-      credits: Number(m[1]),
+      credits: Number(m[1].replace(/,/g, "")),
       index: m.index,
       perSecond
     });
+  }
+  const sentences = text.split(/(?<!\d)[.;\n](?!\d)/);
+  let offset = 0;
+  for (const sentence of sentences) {
+    const start = text.indexOf(sentence, offset);
+    const end = start + sentence.length;
+    offset = end;
+    if (/\b(?:1|one|each|every|per)\s+(?:video\s+)?second\b/i.test(sentence) && !/\bper\s+(?:video|image|clip|generation)\b/i.test(sentence)) {
+      for (const mention of found) {
+        if (mention.index >= start && mention.index < end) {
+          mention.perSecond = true;
+        }
+      }
+    }
   }
   for (const [i, mention] of found.entries()) {
     const tail = text.slice(mention.index, mention.index + 60);
@@ -19617,11 +19652,15 @@ function mentions(text) {
   }
   return found;
 }
-function estimateFromPriceText(text, request) {
-  if (!text?.trim())
+function estimateFromPriceText(rawText, request) {
+  if (!rawText?.trim())
     return { status: "unknown", basis: "kie.ai lists no price" };
-  if (/\btokens?\b/i.test(text) && !/credits?\s*(?:per|\/)\s*(?:image|video|sec|s\b)/i.test(text)) {
-    return { status: "unknown", basis: "priced per token" };
+  const text = normalizeText(rawText);
+  if (UNSUPPORTED.some((pattern) => pattern.test(text))) {
+    return {
+      status: "unknown",
+      basis: "kie.ai prices this by a unit or formula the estimate can't bound (characters, tokens, megapixels, input media or similar); read its price text"
+    };
   }
   if (/\bis free\b/i.test(text) && !/\d\s*credits?/i.test(text)) {
     return {
@@ -19638,11 +19677,22 @@ function estimateFromPriceText(text, request) {
     };
   }
   const wanted = request.resolution ? normalizeResolution(request.resolution) : void 0;
-  const matching = wanted ? all.filter((m) => m.resolution === wanted) : [];
+  const durationTiers = /\b\d+\s?s\b/i.test(text.replace(/\/\s*s(?:ec(?:ond)?)?\b/gi, "")) || /→|->/.test(text);
+  const matching = wanted && !durationTiers ? all.filter((m) => m.resolution === wanted) : [];
+  if (wanted && !durationTiers && matching.length === 0) {
+    const listed = [...text.matchAll(RESOLUTION)].some((token) => normalizeResolution(token[0]) === wanted);
+    if (listed) {
+      return {
+        status: "unknown",
+        basis: `kie.ai lists ${wanted} without a credit price`
+      };
+    }
+  }
   const pool = matching.length > 0 ? matching : all;
   const perSecond = pool.some((m) => m.perSecond);
   const top2 = Math.max(...pool.map((m) => m.credits));
   const outputs = Math.max(1, request.outputCount ?? 1);
+  const where = matching.length > 0 ? ` at ${wanted}` : durationTiers ? " (highest listed price; it depends on duration)" : " (highest listed price)";
   if (perSecond) {
     if (!request.durationSeconds || request.durationSeconds <= 0) {
       return {
@@ -19653,13 +19703,13 @@ function estimateFromPriceText(text, request) {
     return {
       status: "estimated",
       credits: round(top2 * request.durationSeconds * outputs),
-      basis: `up to ${top2} credits/s \xD7 ${request.durationSeconds} s${outputs > 1 ? ` \xD7 ${outputs}` : ""}${matching.length > 0 ? ` at ${wanted}` : " (highest listed rate)"}`
+      basis: `up to ${top2} credits/s \xD7 ${request.durationSeconds} s${outputs > 1 ? ` \xD7 ${outputs}` : ""}${where}`
     };
   }
   return {
     status: "estimated",
     credits: round(top2 * outputs),
-    basis: `up to ${top2} credits${outputs > 1 ? ` \xD7 ${outputs}` : ""}${matching.length > 0 ? ` at ${wanted}` : " (highest listed price)"}`
+    basis: `up to ${top2} credits${outputs > 1 ? ` \xD7 ${outputs}` : ""}${where}`
   };
 }
 function round(value) {
@@ -19825,6 +19875,15 @@ var CATALOG_COUNT_FIELDS = [
   "batch_size",
   "count"
 ];
+function highestCount(input) {
+  let highest = 1;
+  for (const key of CATALOG_COUNT_FIELDS) {
+    const count = Number(input[key]);
+    if (Number.isFinite(count) && count > highest)
+      highest = Math.ceil(count);
+  }
+  return highest;
+}
 function resolveOutputCount(args, keys = ["max_images", "num_images", "videoBatchSize", "repeat"]) {
   for (const key of keys) {
     const value = args[key];
@@ -19865,7 +19924,7 @@ function prepareGenerationPlan(requestedItems, tools, options = {}) {
     const details = options.itemDetails?.[index];
     const model = resolveModel(requested.tool, parsed);
     const mode = details?.mode ?? resolveGenerationMode(requested.tool, parsed);
-    const outputCount = requested.tool === "run_model" ? resolveOutputCount(parsed.input ?? {}, CATALOG_COUNT_FIELDS) : resolveOutputCount(parsed);
+    const outputCount = requested.tool === "run_model" ? Math.max(highestCount(parsed.input ?? {}), details?.defaultOutputCount ?? 1) : resolveOutputCount(parsed);
     const quoted = priceRequest(requested.tool, { ...parsed, outputCount }, model, mode);
     let price = quoted;
     if (details?.priceNote && quoted.status !== "exact") {
@@ -20028,6 +20087,7 @@ async function catalogDetails(items, ctx) {
     const fields = check2.shape.inputSchema?.properties ?? {};
     details.push({
       priceInputs: priceInputsFor(input, fields),
+      defaultOutputCount: Math.max(1, ...CATALOG_COUNT_FIELDS.map((key) => Number(fields[key]?.default)).filter((n) => Number.isFinite(n))),
       // kie.ai's listing says what the model offers, not what this request
       // does (Seedance 1.5 Pro is listed only as image-to-video but also does
       // text-to-video), so label it as the listing.
@@ -20046,6 +20106,8 @@ var prepareMediaGenerationTool = {
   async run(args, ctx) {
     try {
       const request = PrepareMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError)
+        throw new Error(ctx.spendPolicyError);
       if (typeof ctx.client.hasApiKey === "function" && !ctx.client.hasApiKey()) {
         throw new Error(MISSING_API_KEY_MESSAGE);
       }
@@ -20084,7 +20146,7 @@ var prepareMediaGenerationTool = {
         return chatApprovalResult(plan, spent);
       }
       if (!ctx.requestPlanApproval) {
-        return pendingResult(plan, policy.approval === "auto" ? `This plan is above the auto-approval limit (${policy.autoApproveCredits} credits) or has an unknown price, and this app can't show an approval form. A person must approve it: set KIE_AI_APPROVAL=chat, or use the CLI in a terminal.` : "This app can't show an approval form. A person can approve the plan in a terminal with the CLI, or the person who runs the server can set KIE_AI_APPROVAL=chat so the agent relays their yes.");
+        return pendingResult(plan, policy.approval === "auto" ? `This plan is above the auto-approval limit (${policy.autoApproveCredits} credits) or has an unknown price, and this app can't show an approval form, so a person can't approve it here. Choose cheaper settings, or ask the person who runs the server to change the approval mode.` : "This app can't show an approval form, so this plan can't be approved here. The person who runs the server can switch it to chat approval (KIE_AI_APPROVAL=chat), where the agent shows the plan and relays their yes.");
       }
       let decision;
       try {
@@ -20461,10 +20523,22 @@ function parseToolResult(result) {
 function extractTaskId(result) {
   if (!result || typeof result !== "object")
     return void 0;
-  const data = result;
-  if (typeof data.task_id === "string")
-    return data.task_id;
-  return typeof data.response?.data?.taskId === "string" ? data.response.data.taskId : void 0;
+  const record2 = result;
+  const nested = [
+    record2,
+    record2.data,
+    record2.response?.data
+  ];
+  for (const candidate of nested) {
+    if (!candidate || typeof candidate !== "object")
+      continue;
+    const fields = candidate;
+    for (const key of ["task_id", "taskId"]) {
+      if (typeof fields[key] === "string" && fields[key])
+        return fields[key];
+    }
+  }
+  return void 0;
 }
 function resultError(envelope, result) {
   if (envelope.isError)
@@ -20498,6 +20572,8 @@ var submitMediaGenerationTool = {
   async run(args, ctx) {
     try {
       const { planId } = SubmitMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError)
+        throw new Error(ctx.spendPolicyError);
       const stored = await ctx.db.getGenerationPlan(planId);
       if (!stored)
         throw new Error("Prepared plan not found.");
@@ -20574,6 +20650,7 @@ var submitMediaGenerationTool = {
         recordWarning = `The tasks below were sent to kie.ai, but saving the outcome locally failed (${error51 instanceof Error ? error51.message : String(error51)}). Do not submit this work again; follow the task IDs below.`;
       }
       const created = results.filter((result) => result.taskId).length;
+      const unsure = results.filter((result) => !result.taskId).length;
       const body = {
         success: !failed,
         planId,
@@ -20581,7 +20658,10 @@ var submitMediaGenerationTool = {
         results,
         ...failed ? {
           error: "One or more plan items failed.",
-          note: created > 0 ? `${created} task(s) were created and will be charged. Wait for them with wait_for_task; do not resubmit them. Only the failed items need a new plan.` : "No task was created, so nothing was charged."
+          note: [
+            created > 0 ? `${created} task(s) were created and will be charged: wait for them with wait_for_task and never resubmit them.` : "",
+            unsure > 0 ? `${unsure} item(s) returned no task id. kie.ai may have rejected them (not charged) or the request may have timed out after kie.ai created a task. Their estimate stays booked against the daily cap. Check list_tasks and the kie.ai logs (https://kie.ai/logs) before planning them again.` : ""
+          ].filter(Boolean).join(" ")
         } : {},
         ...recordWarning ? { warning: recordWarning } : {}
       };
@@ -21343,7 +21423,7 @@ function isWithinRoot(candidate, root) {
   return path === "" || !path.startsWith("..") && !isAbsolute(path);
 }
 function apiKeyFromEnv() {
-  return process.env.KIE_AI_API_KEY || process.env.KIE_API_KEY || "";
+  return envSetting("KIE_AI_API_KEY") || envSetting("KIE_API_KEY") || "";
 }
 function configFromEnv() {
   return {
@@ -26334,7 +26414,7 @@ async function approvePlanForSubmission(db, args, policy, io) {
   }
   if (policy.approval !== "chat") {
     throw new Error(
-      policy.approval === "form" ? "In form approval mode a person approves in a terminal: run this submit command yourself in a terminal and type the code it shows. To let an agent relay your yes instead, the person who runs the CLI can set KIE_AI_APPROVAL=chat." : "This plan wasn't approved automatically (it is above KIE_AI_AUTO_APPROVE_CREDITS or its price is unknown). A person must approve it in a terminal, or with KIE_AI_APPROVAL=chat."
+      policy.approval === "form" ? "In form approval mode a person approves in a terminal: run this submit command yourself in a terminal and type the code it shows. (Other approval modes are described in the README.)" : "This plan wasn't approved automatically (it is above the auto-approve limit or its price is unknown). A person must approve it by running this submit command in a terminal."
     );
   }
   if (args.approve !== args.planId) {
@@ -26457,7 +26537,7 @@ function build() {
               {
                 success: false,
                 tool: tool.name,
-                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> in a terminal, where you approve by typing the code it shows. Set KIE_AI_ALLOW_DIRECT_GENERATION=true to skip plans entirely.`
+                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> in a terminal, where you approve by typing the code it shows.`
               },
               null,
               2

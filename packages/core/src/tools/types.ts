@@ -72,6 +72,8 @@ export interface ToolContext {
   catalog?: KieCatalog;
   /** Approval mode and credit caps; defaults apply when an adapter omits it. */
   spendPolicy?: SpendPolicy;
+  /** Set when the spend settings are invalid: every paid step refuses with it. */
+  spendPolicyError?: string;
   /** Opaque adapter-owned identity that binds a media plan to its caller. */
   approvalContext: string;
   /** Resolves the callback URL using env fallbacks (mirrors the MCP behaviour). */

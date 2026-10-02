@@ -97,7 +97,10 @@ describe("submit never hides paid tasks", () => {
     expect(body.success).toBe(false);
     expect(body.results[0].taskId).toBe("paid-1");
     expect(body.note).toContain("1 task(s) were created and will be charged");
-    expect(body.note).toContain("do not resubmit");
+    expect(body.note).toContain("never resubmit them");
+    expect(body.note).toContain(
+      "may have timed out after kie.ai created a task",
+    );
   });
 
   test("a database error after the tasks exist is a warning, not a lost submission", async () => {

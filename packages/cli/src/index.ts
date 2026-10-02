@@ -176,7 +176,7 @@ function build() {
               {
                 success: false,
                 tool: tool.name,
-                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> in a terminal, where you approve by typing the code it shows. Set KIE_AI_ALLOW_DIRECT_GENERATION=true to skip plans entirely.`,
+                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> in a terminal, where you approve by typing the code it shows.`,
               },
               null,
               2,
