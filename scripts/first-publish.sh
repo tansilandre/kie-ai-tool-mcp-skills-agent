@@ -11,7 +11,7 @@
 #   3. publishes @kie-ai-tool/mcp, @kie-ai-tool/cli and @kie-ai-tool/openai-server
 #      (npm asks for your 2FA code)
 #   4. connects each package to this repo's release.yml as its trusted publisher
-#      (needs npm 11.15 or newer and 2FA on your npm account)
+#      (needs 2FA on your npm account; uses npm 11 from npx if yours is older)
 set -euo pipefail
 
 REPO="tansilandre/kie-ai-tool-mcp-skills-agent"
@@ -48,23 +48,35 @@ for pkg in "${PACKAGES[@]}"; do
   fi
 done
 
+# `npm trust` needs npm 11.15 or newer. If the installed npm is older (for
+# example a global npm another tool manages), borrow a newer one just for
+# these commands instead of replacing it.
 npm_major=$(npm --version | cut -d. -f1)
 npm_minor=$(npm --version | cut -d. -f2)
 if [ "$npm_major" -gt 11 ] || { [ "$npm_major" -eq 11 ] && [ "$npm_minor" -ge 15 ]; }; then
-  for pkg in "${PACKAGES[@]}"; do
-    name="${pkg#*:}"
-    echo "Connecting $name to $REPO (release.yml) as trusted publisher..."
-    npm trust github "$name" --repo "$REPO" --file release.yml --allow-publish --yes
-  done
-  echo
+  trust=(npm trust)
+else
+  echo "Your npm is $(npm --version); using npm 11 from npx for the trust step."
+  trust=(npx -y "npm@^11.15.0" trust)
+fi
+
+failed=0
+for pkg in "${PACKAGES[@]}"; do
+  name="${pkg#*:}"
+  echo "Connecting $name to $REPO (release.yml) as trusted publisher..."
+  if ! "${trust[@]}" github "$name" --repo "$REPO" --file release.yml --allow-publish --yes; then
+    failed=1
+  fi
+done
+
+echo
+if [ "$failed" -eq 0 ]; then
   echo "Done. Future releases: bump the versions, push a tag like v0.2.0, and GitHub Actions publishes."
 else
-  echo
-  echo "Published. To let GitHub Actions publish future releases without a token, either:"
-  echo "  - update npm (npm install -g npm@latest) and run this script again, or"
-  echo "  - on npmjs.com open each package > Settings > Trusted Publisher > GitHub Actions and enter:"
-  echo "      Organization or user: tansilandre"
-  echo "      Repository:           kie-ai-tool-mcp-skills-agent"
-  echo "      Workflow filename:    release.yml"
-  echo "    for @kie-ai-tool/mcp, @kie-ai-tool/cli and @kie-ai-tool/openai-server."
+  echo "Published, but connecting to GitHub failed for at least one package (it needs 2FA turned on"
+  echo "for your npm account). Turn on 2FA and run this script again, or on npmjs.com open each"
+  echo "package > Settings > Trusted Publisher > GitHub Actions and enter:"
+  echo "    Organization or user: tansilandre"
+  echo "    Repository:           kie-ai-tool-mcp-skills-agent"
+  echo "    Workflow filename:    release.yml"
 fi
