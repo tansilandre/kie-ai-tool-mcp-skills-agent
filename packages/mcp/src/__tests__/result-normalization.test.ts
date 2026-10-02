@@ -23,19 +23,45 @@ describe("normalizeToolResult", () => {
       }),
     );
     expect(result.structuredContent).toEqual({
+      success: true,
       task_id: "veo-123",
       status: "pending",
       api_type: "veo3",
     });
   });
 
-  test("leaves richer structured results untouched", () => {
-    const original = textResult(
-      { task_id: "x" },
-      {
-        structuredContent: { media_id: "m-1" },
-      },
+  test("mirrors every field of the text, so hosts that show only structuredContent see result URLs", () => {
+    const result = normalizeToolResult(
+      textResult({
+        success: true,
+        task_id: "t-1",
+        status: "completed",
+        result_urls: ["https://f.example/1.png", "https://f.example/2.png"],
+      }),
     );
+    expect(result.structuredContent?.result_urls).toEqual([
+      "https://f.example/1.png",
+      "https://f.example/2.png",
+    ]);
+  });
+
+  test("keeps a tool's own structured fields and adds the rest of the text", () => {
+    const original = textResult(
+      { plan_id: "from-text", plan: { items: [{ price: { credits: 6 } }] } },
+      { structuredContent: { plan_id: "p-1", status: "prepared" } },
+    );
+    expect(normalizeToolResult(original).structuredContent).toEqual({
+      plan_id: "p-1",
+      status: "prepared",
+      plan: { items: [{ price: { credits: 6 } }] },
+    });
+  });
+
+  test("leaves a structured result alone when the text isn't a JSON object", () => {
+    const original: ToolResult = {
+      content: [{ type: "text", text: "plain prose" }],
+      structuredContent: { media_id: "m-1" },
+    };
     expect(normalizeToolResult(original)).toBe(original);
   });
 

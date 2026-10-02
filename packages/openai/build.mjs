@@ -17,7 +17,7 @@ await build({
   format: "esm",
   target: "node18",
   sourcemap: true,
-  external: ["express", "sqlite3"],
+  external: ["express"],
   define: {
     __PACKAGE_VERSION__: JSON.stringify(packageJson.version),
   },

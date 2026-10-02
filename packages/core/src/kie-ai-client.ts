@@ -33,6 +33,9 @@ import type {
   ZImageRequest,
 } from "./types.js";
 
+export const MISSING_API_KEY_MESSAGE =
+  "No kie.ai API key is set. Get one at https://kie.ai/api-key, then in Claude Code run /plugin configure kie@kie-ai-tool, or set KIE_API_KEY in the environment that starts your agent and restart it.";
+
 export class KieAiRequestError extends Error {
   constructor(
     message: string,
@@ -185,11 +188,18 @@ export class KieAiClient {
     return parsed.toString();
   }
 
+  private requireApiKey(): void {
+    if (!this.config.apiKey) {
+      throw new KieAiRequestError(MISSING_API_KEY_MESSAGE, 401);
+    }
+  }
+
   private async uploadRequest(
     endpoint: string,
     body: BodyInit,
     contentType?: string,
   ): Promise<KieAiResponse<KieAiUploadResult>> {
+    this.requireApiKey();
     const response = await fetch(this.fileUploadEndpoint(endpoint), {
       method: "POST",
       headers: {
@@ -234,6 +244,7 @@ export class KieAiClient {
     method: "GET" | "POST" = "POST",
     body?: any,
   ): Promise<KieAiResponse<T>> {
+    this.requireApiKey();
     const url = `${this.config.baseUrl}${endpoint}`;
 
     const headers: HeadersInit = {

@@ -64,7 +64,6 @@
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "express": "^4.21.2",
-    "sqlite3": "^5.1.6",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -80,7 +79,7 @@
     "typescript": "^5.3.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.13.0"
   },
   "files": [
     "dist",

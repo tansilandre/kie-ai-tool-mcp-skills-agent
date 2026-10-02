@@ -51,7 +51,8 @@ cheapest settings only (gpt-image-2 at 1K, Veo 3.1 Lite at 720p), as Andre allow
    account balance. Run *any* catalog model through the same prepare → approve → submit flow, with
    the request checked against the model's live schema. Accept `KIE_API_KEY`, the name kie.ai's own
    docs use, as well as `KIE_AI_API_KEY`.
-3. **One-step install.** Replace the native `sqlite3` module with Node's built-in `node:sqlite`, so
+3. ✅ **One-step install.** (PR #3; the live gpt-image-2 test moved to step 4, because plan
+   approval in a non-interactive session is cancelled by the host.) Replace the native `sqlite3` module with Node's built-in `node:sqlite`, so
    the server is one file with no install step. Package the repo as a Claude Code plugin and
    marketplace (`/plugin marketplace add tansilandre/kie-ai-tool-mcp-skills-agent`), with a core
    `kie` skill and a `kie-director` agent. Live test: one gpt-image-2 1K image through the

@@ -21,7 +21,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
 
       - run: npm ci
@@ -42,6 +42,19 @@ jobs:
         run: |
           npm run docs
           git diff --exit-code -- docs/TOOLS.md
+
+      - name: Verify committed plugin bundles match the source
+        run: |
+          npm run bundle:plugin
+          git diff --exit-code -- bundle/
+
+      - name: Smoke-test the plugin bundles without node_modules
+        run: |
+          mkdir -p /tmp/bundle-smoke
+          cp bundle/kie-mcp.mjs bundle/kie-cli.mjs /tmp/bundle-smoke/
+          cd /tmp/bundle-smoke
+          node kie-cli.mjs --help > /dev/null
+          KIE_AI_API_KEY=ci-not-a-real-key KIE_AI_DB_PATH=/tmp/bundle-smoke/tasks.db node kie-cli.mjs list_models --filter veo --json | grep -q veo3_generate_video
 
       - name: Verify publishable packages
         run: |

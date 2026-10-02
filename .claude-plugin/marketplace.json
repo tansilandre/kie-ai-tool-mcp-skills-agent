@@ -1,0 +1,17 @@
+{
+  "name": "kie-ai-tool",
+  "owner": {
+    "name": "Andre Tansil",
+    "url": "https://github.com/tansilandre"
+  },
+  "description": "Open-source kie.ai toolkit for AI agents: MCP server, skills and a media agent.",
+  "plugins": [
+    {
+      "name": "kie",
+      "source": "./",
+      "description": "Make images, video, music and speech with any kie.ai model, with prices shown and your approval before credits are spent.",
+      "category": "media",
+      "tags": ["kie.ai", "image", "video", "audio", "mcp"]
+    }
+  ]
+}

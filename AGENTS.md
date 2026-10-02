@@ -31,8 +31,29 @@ in [`docs/ROADMAP.md`](docs/ROADMAP.md); read it before starting a feature.
    (`GET /api/v1/models`, `/api/v1/models/{model}/schema`) or the docs, and cite the source.
 7. **Credit upstream work.** Code or text adapted from another project keeps its license notice
    and is listed in [`NOTICE.md`](NOTICE.md).
-8. Keep install commands pointing only at things that exist. This fork is not on npm yet, so never
+8. **Rebuild the plugin bundles** after changing anything under `packages/`: `npm run build &&
+   npm run bundle:plugin`, and commit `bundle/`. Plugin hosts run `bundle/kie-mcp.mjs` straight from
+   the clone; CI rebuilds the bundles and fails if the committed ones differ.
+9. Keep install commands pointing only at things that exist. This fork is not on npm yet, so never
    tell users to `npx` an `@kie-ai-tool/*` package until it is published.
+
+## Plugin layout
+
+The repo root is also a Claude Code plugin and marketplace:
+
+- `.claude-plugin/plugin.json`: plugin `kie` (MCP server `kie` running `bundle/kie-mcp.mjs`, and a
+  sensitive `kie_api_key` user setting passed as `KIE_AI_API_KEY`).
+- `.claude-plugin/marketplace.json`: marketplace `kie-ai-tool`, one plugin with source `./`.
+- `skills/<name>/SKILL.md`: skills, namespaced `kie:<name>` in Claude Code.
+- `agents/<name>.md`: agents. Plugin MCP tools are named `mcp__plugin_kie_kie__<tool>`.
+
+Check changes with `claude plugin validate .claude-plugin/plugin.json --strict` and
+`claude plugin validate . --strict`.
+
+**Hosts show the model `structuredContent` instead of the text.** Claude Code does this, so
+`packages/mcp/src/result-normalization.ts` mirrors every field of a tool's JSON text into
+`structuredContent`, and output schemas are loose objects. Never return a structured result that
+leaves out something the model needs, such as result URLs, prices or the plan.
 
 ## Authoritative MCP Documentation
 - Start with the official MCP documentation index at https://modelcontextprotocol.io/llms.txt for current protocol and MCP Apps contracts, then follow its relevant source links.
@@ -44,7 +65,7 @@ in [`docs/ROADMAP.md`](docs/ROADMAP.md); read it before starting a feature.
 - **Improve user experience** through intuitive parameter design
 
 ## Build/Test Commands
-- Build: `npm run build` (TypeScript → dist/)
+- Build: `npm run build` (TypeScript → dist/), then `npm run bundle:plugin` (bundle/)
 - Test: `npm test` (Jest)
 - Dev: `npm run dev` (tsx auto-reload)
 - Type check: `npx tsc --noEmit`

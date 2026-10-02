@@ -1,0 +1,42 @@
+{
+  "name": "kie",
+  "displayName": "kie.ai toolkit",
+  "version": "0.1.0",
+  "description": "Make images, video, music and speech with any kie.ai model: live catalog, prices and model health, a plan you approve before credits are spent, skills and a ready-made media agent.",
+  "author": {
+    "name": "Andre Tansil",
+    "url": "https://github.com/tansilandre"
+  },
+  "homepage": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent",
+  "repository": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent",
+  "license": "MIT",
+  "keywords": [
+    "kie.ai",
+    "image",
+    "video",
+    "music",
+    "speech",
+    "mcp",
+    "gpt-image-2",
+    "veo",
+    "seedance",
+    "kling"
+  ],
+  "mcpServers": {
+    "kie": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bundle/kie-mcp.mjs"],
+      "env": {
+        "KIE_AI_API_KEY": "${user_config.kie_api_key}"
+      }
+    }
+  },
+  "userConfig": {
+    "kie_api_key": {
+      "type": "string",
+      "title": "kie.ai API key",
+      "description": "Create one at https://kie.ai/api-key. Leave it empty to use KIE_API_KEY from your shell instead.",
+      "sensitive": true
+    }
+  }
+}

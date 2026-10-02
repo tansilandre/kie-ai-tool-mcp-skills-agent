@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Claude Code plugin and marketplace in the repo root (`/plugin marketplace add
+  tansilandre/kie-ai-tool-mcp-skills-agent`, `/plugin install kie@kie-ai-tool`). It asks for the
+  kie.ai key once and stores it in secure storage, falling back to `KIE_API_KEY`.
+- `kie-director` agent: brief → models from the live catalog → prompts → approved plan →
+  generate → check every output → files and real cost.
+- `bundle/kie-mcp.mjs` and `bundle/kie-cli.mjs`: the MCP server and CLI as single files with no
+  dependencies (`npm run bundle:plugin`). CI checks they match the source and run without
+  `node_modules`.
 - Live kie.ai catalog: `search_models`, `get_model_schema`, `get_model_status` (price
   text and success rate) and `get_balance`, all free. Schemas are cached on disk for 24
   hours, and kie.ai's 429 rate limit is retried with back-off, falling back to an
@@ -19,6 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `KIE_API_KEY` is accepted as well as `KIE_AI_API_KEY`.
 
 ### Changed
+- The task store uses Node's built-in `node:sqlite` instead of the native `sqlite3` package, which
+  needed a compiler or prebuilt binary and often failed on Windows. Node 22.13 or newer is now
+  required. Existing databases open unchanged.
+- The MCP server starts without an API key and answers every tool call with how to set one,
+  instead of exiting (which hosts show only as "failed to connect").
+- MCP results mirror the whole JSON text into `structuredContent`. Claude Code shows the model the
+  structured part instead of the text, and the old structured summaries hid result URLs
+  (`get_task_status` showed only `task_id` and `status`), prices and plan details. Output schemas
+  are now loose objects.
+- Removed the `kie-ai` skill stub, whose evals tested the old direct-run flow.
 - `get_task_status` and `wait_for_task` return every result URL of a task, not only
   the first, and treat kie.ai's `queuing` and `generating` states as in progress.
 - The CLI refuses to run `run_model` outside a plan unless

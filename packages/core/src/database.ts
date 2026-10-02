@@ -1,18 +1,60 @@
-import { existsSync, mkdirSync } from "fs";
-import { homedir } from "os";
-import { dirname, resolve } from "path";
-import sqlite3 from "sqlite3";
+import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import { homedir } from "node:os";
+import { dirname, resolve } from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 import type { PreparedGenerationPlan } from "./generation-plan.js";
 import type { TaskRecord } from "./types.js";
 
+// Node's built-in SQLite (node:sqlite, Node 22.13+) replaces the native
+// `sqlite3` package, which needed a compiler or a prebuilt binary and often
+// failed to install on Windows. The module still prints an
+// ExperimentalWarning on some Node versions; silence just that one so a
+// stdio MCP server or the CLI doesn't print noise on stderr.
+const require = createRequire(import.meta.url);
+function loadSqlite(): typeof import("node:sqlite") {
+  const emit = process.emitWarning;
+  process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
+    const text = typeof warning === "string" ? warning : warning.message;
+    if (/SQLite is an experimental feature/i.test(text)) return;
+    return (emit as (...args: unknown[]) => void).call(
+      process,
+      warning,
+      ...rest,
+    );
+  }) as typeof process.emitWarning;
+  try {
+    return require("node:sqlite") as typeof import("node:sqlite");
+  } catch (error) {
+    throw new Error(
+      `kie-ai-tool needs Node.js 22.13 or newer (found ${process.version}) for its built-in SQLite task store. ${error instanceof Error ? error.message : ""}`.trim(),
+    );
+  } finally {
+    process.emitWarning = emit;
+  }
+}
+
+/** Adds a column that databases created by older versions lack. */
+function addColumnIfMissing(
+  db: DatabaseSync,
+  table: "tasks" | "generation_plans",
+  column: string,
+  type: string,
+): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+    name: string;
+  }>;
+  if (!columns.some((existing) => existing.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+
 export class TaskDatabase {
-  private db: sqlite3.Database;
+  private db: DatabaseSync;
+  private closed = false;
 
   constructor(dbPath?: string) {
-    // Determine the actual database path
     const actualDbPath = this.resolveDbPath(dbPath);
-
-    // Create directory if it doesn't exist
     const dir = dirname(actualDbPath);
     try {
       mkdirSync(dir, { recursive: true });
@@ -21,7 +63,11 @@ export class TaskDatabase {
       throw new Error(`Cannot create database directory: ${dir}`);
     }
 
-    this.db = new sqlite3.Database(actualDbPath);
+    const { DatabaseSync } = loadSqlite();
+    this.db = new DatabaseSync(actualDbPath);
+    // The CLI and the MCP server may share one file; wait for a lock instead
+    // of failing immediately.
+    this.db.exec("PRAGMA busy_timeout = 5000");
     this.initializeDatabase();
   }
 
@@ -32,105 +78,69 @@ export class TaskDatabase {
     }
 
     // Default: use home directory for reliability with npx
-    const homeDir = homedir();
-    return resolve(homeDir, ".kie-ai", "tasks.db");
+    return resolve(homedir(), ".kie-ai", "tasks.db");
   }
 
   private initializeDatabase(): void {
-    this.db.serialize(() => {
-      this.db.run(`
-        CREATE TABLE IF NOT EXISTS tasks (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          task_id TEXT UNIQUE NOT NULL,
-          api_type TEXT NOT NULL,
-          status TEXT DEFAULT 'pending',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          result_url TEXT,
-          error_message TEXT,
-          credits_consumed REAL
-        )
-      `);
-
-      this.db.run(
-        `ALTER TABLE tasks ADD COLUMN credits_consumed REAL`,
-        (err) => {
-          // Existing databases already have this column after the first migration.
-          if (err && !err.message.includes("duplicate column name")) {
-            console.error("Failed to add tasks.credits_consumed:", err);
-          }
-        },
-      );
-
-      this.db.run(`
-        CREATE TABLE IF NOT EXISTS generation_plans (
-          plan_id TEXT PRIMARY KEY,
-          status TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          expires_at TEXT NOT NULL,
-          plan_json TEXT NOT NULL,
-          request_hash TEXT NOT NULL,
-          approval_context TEXT NOT NULL,
-          submitted_at TEXT,
-          task_results_json TEXT
-        )
-      `);
-
-      this.db.run(`CREATE INDEX IF NOT EXISTS idx_task_id ON tasks(task_id)`);
-      this.db.run(`CREATE INDEX IF NOT EXISTS idx_status ON tasks(status)`);
-      this.db.run(
-        `CREATE INDEX IF NOT EXISTS idx_generation_plans_status ON generation_plans(status)`,
-      );
-
-      this.db.run(
-        `ALTER TABLE generation_plans ADD COLUMN approval_context TEXT`,
-        (err) => {
-          // Existing databases already have this column after the first migration.
-          if (err && !err.message.includes("duplicate column name")) {
-            console.error(
-              "Failed to add generation_plans.approval_context:",
-              err,
-            );
-          }
-        },
-      );
-    });
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT UNIQUE NOT NULL,
+        api_type TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        result_url TEXT,
+        error_message TEXT,
+        credits_consumed REAL
+      )
+    `);
+    // Databases created by older versions lack these columns.
+    addColumnIfMissing(this.db, "tasks", "credits_consumed", "REAL");
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS generation_plans (
+        plan_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        plan_json TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        approval_context TEXT NOT NULL,
+        submitted_at TEXT,
+        task_results_json TEXT
+      )
+    `);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_task_id ON tasks(task_id)`);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_status ON tasks(status)`);
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_generation_plans_status ON generation_plans(status)`,
+    );
+    addColumnIfMissing(this.db, "generation_plans", "approval_context", "TEXT");
   }
 
   async createTask(
     taskData: Omit<TaskRecord, "id" | "created_at" | "updated_at">,
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db.run(
+    this.db
+      .prepare(
         `INSERT INTO tasks (task_id, api_type, status, result_url, error_message, credits_consumed)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          taskData.task_id,
-          taskData.api_type,
-          taskData.status,
-          taskData.result_url || null,
-          taskData.error_message || null,
-          taskData.credits_consumed ?? null,
-        ],
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        },
+      )
+      .run(
+        taskData.task_id,
+        taskData.api_type,
+        taskData.status,
+        taskData.result_url || null,
+        taskData.error_message || null,
+        taskData.credits_consumed ?? null,
       );
-    });
   }
 
   async getTask(taskId: string): Promise<TaskRecord | null> {
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        `SELECT * FROM tasks WHERE task_id = ?`,
-        [taskId],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve((row as TaskRecord) || null);
-        },
-      );
-    });
+    const row = this.db
+      .prepare(`SELECT * FROM tasks WHERE task_id = ?`)
+      .get(taskId);
+    return (row as unknown as TaskRecord | undefined) ?? null;
   }
 
   async updateTask(
@@ -138,93 +148,66 @@ export class TaskDatabase {
     updates: Partial<TaskRecord>,
   ): Promise<void> {
     const updateFields: string[] = [];
-    const values: any[] = [];
+    const values: Array<string | number> = [];
 
     if (updates.status) {
       updateFields.push("status = ?");
       values.push(updates.status);
     }
-
     if (updates.result_url) {
       updateFields.push("result_url = ?");
       values.push(updates.result_url);
     }
-
     if (updates.error_message) {
       updateFields.push("error_message = ?");
       values.push(updates.error_message);
     }
-
     if (updates.credits_consumed !== undefined) {
       updateFields.push("credits_consumed = ?");
       values.push(updates.credits_consumed);
     }
+    if (updateFields.length === 0) return;
 
     updateFields.push("updated_at = CURRENT_TIMESTAMP");
-    values.push(taskId);
-
-    if (updateFields.length > 1) {
-      return new Promise((resolve, reject) => {
-        this.db.run(
-          `UPDATE tasks SET ${updateFields.join(", ")} WHERE task_id = ?`,
-          values,
-          (err) => {
-            if (err) reject(err);
-            else resolve();
-          },
-        );
-      });
-    }
+    this.db
+      .prepare(`UPDATE tasks SET ${updateFields.join(", ")} WHERE task_id = ?`)
+      .run(...values, taskId);
   }
 
   async getAllTasks(limit: number = 100): Promise<TaskRecord[]> {
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        `SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?`,
-        [limit],
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows as TaskRecord[]);
-        },
-      );
-    });
+    return this.db
+      .prepare(`SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?`)
+      .all(limit) as unknown as TaskRecord[];
   }
 
   async getTasksByStatus(
     status: string,
     limit: number = 50,
   ): Promise<TaskRecord[]> {
-    return new Promise((resolve, reject) => {
-      this.db.all(
+    return this.db
+      .prepare(
         `SELECT * FROM tasks WHERE status = ? ORDER BY created_at DESC LIMIT ?`,
-        [status, limit],
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows as TaskRecord[]);
-        },
-      );
-    });
+      )
+      .all(status, limit) as unknown as TaskRecord[];
   }
 
   async createGenerationPlan(
     plan: PreparedGenerationPlan,
     approvalContext: string,
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db.run(
+    this.db
+      .prepare(
         `INSERT INTO generation_plans (plan_id, status, created_at, expires_at, plan_json, request_hash, approval_context)
          VALUES (?, 'prepared', ?, ?, ?, ?, ?)`,
-        [
-          plan.id,
-          plan.createdAt,
-          plan.expiresAt,
-          JSON.stringify(plan),
-          plan.requestHash,
-          approvalContext,
-        ],
-        (err) => (err ? reject(err) : resolve()),
+      )
+      .run(
+        plan.id,
+        plan.createdAt,
+        plan.expiresAt,
+        JSON.stringify(plan),
+        plan.requestHash,
+        approvalContext,
       );
-    });
   }
 
   async getGenerationPlan(planId: string): Promise<{
@@ -233,34 +216,27 @@ export class TaskDatabase {
     requestHash: string;
     results?: unknown;
   } | null> {
-    return new Promise((resolve, reject) => {
-      this.db.get(
+    const row = this.db
+      .prepare(
         `SELECT status, plan_json, request_hash, task_results_json FROM generation_plans WHERE plan_id = ?`,
-        [planId],
-        (err, row) => {
-          if (err) return reject(err);
-          if (!row) return resolve(null);
-          const stored = row as {
-            status: string;
-            plan_json: string;
-            request_hash: string;
-            task_results_json: string | null;
-          };
-          try {
-            resolve({
-              plan: JSON.parse(stored.plan_json) as PreparedGenerationPlan,
-              status: stored.status,
-              requestHash: stored.request_hash,
-              ...(stored.task_results_json
-                ? { results: JSON.parse(stored.task_results_json) as unknown }
-                : {}),
-            });
-          } catch (parseError) {
-            reject(parseError);
-          }
-        },
-      );
-    });
+      )
+      .get(planId) as
+      | {
+          status: string;
+          plan_json: string;
+          request_hash: string;
+          task_results_json: string | null;
+        }
+      | undefined;
+    if (!row) return null;
+    return {
+      plan: JSON.parse(row.plan_json) as PreparedGenerationPlan,
+      status: row.status,
+      requestHash: row.request_hash,
+      ...(row.task_results_json
+        ? { results: JSON.parse(row.task_results_json) as unknown }
+        : {}),
+    };
   }
 
   /** Atomically records approval for an unchanged, unexpired prepared plan. */
@@ -269,18 +245,14 @@ export class TaskDatabase {
     requestHash: string,
     approvalContext: string,
   ): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      this.db.run(
+    const result = this.db
+      .prepare(
         `UPDATE generation_plans
          SET status = 'approved'
           WHERE plan_id = ? AND request_hash = ? AND approval_context = ? AND status = 'prepared' AND expires_at > ?`,
-        [planId, requestHash, approvalContext, new Date().toISOString()],
-        function (err) {
-          if (err) reject(err);
-          else resolve(this.changes === 1);
-        },
-      );
-    });
+      )
+      .run(planId, requestHash, approvalContext, new Date().toISOString());
+    return Number(result.changes) === 1;
   }
 
   /** Atomically consumes an approved plan before any provider call can start. */
@@ -289,47 +261,36 @@ export class TaskDatabase {
     requestHash: string,
     approvalContext: string,
   ): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      this.db.run(
+    const result = this.db
+      .prepare(
         `UPDATE generation_plans
          SET status = 'submitting', submitted_at = CURRENT_TIMESTAMP
           WHERE plan_id = ? AND request_hash = ? AND approval_context = ? AND status = 'approved' AND expires_at > ?`,
-        [planId, requestHash, approvalContext, new Date().toISOString()],
-        function (err) {
-          if (err) reject(err);
-          else resolve(this.changes === 1);
-        },
-      );
-    });
+      )
+      .run(planId, requestHash, approvalContext, new Date().toISOString());
+    return Number(result.changes) === 1;
   }
 
   async finishGenerationPlan(planId: string, results: unknown): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db.run(
+    this.db
+      .prepare(
         `UPDATE generation_plans SET status = 'submitted', task_results_json = ? WHERE plan_id = ? AND status = 'submitting'`,
-        [JSON.stringify(results), planId],
-        (err) => (err ? reject(err) : resolve()),
-      );
-    });
+      )
+      .run(JSON.stringify(results), planId);
   }
 
   /** A claimed plan is terminal after any provider result to prevent duplicate paid creates. */
   async failGenerationPlan(planId: string, results: unknown): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db.run(
+    this.db
+      .prepare(
         `UPDATE generation_plans SET status = 'failed', task_results_json = ? WHERE plan_id = ? AND status = 'submitting'`,
-        [JSON.stringify(results), planId],
-        (err) => (err ? reject(err) : resolve()),
-      );
-    });
+      )
+      .run(JSON.stringify(results), planId);
   }
 
   async close(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.db.close((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    if (this.closed) return;
+    this.closed = true;
+    this.db.close();
   }
 }

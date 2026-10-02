@@ -1,5 +1,5 @@
 // Publish bundle: inline @kie-ai-tool/core into a single self-contained file.
-// Third-party runtime deps stay external; sqlite3 is native and MUST stay external.
+// Third-party runtime deps stay external. The task store uses node:sqlite.
 import { build } from "esbuild";
 import { readFileSync } from "fs";
 
@@ -10,9 +10,9 @@ await build({
   bundle: true,
   platform: "node",
   format: "esm",
-  target: "node18",
+  target: "node22",
   outfile: OUT,
-  external: ["sqlite3", "yargs", "zod"],
+  external: ["yargs", "zod"],
   logLevel: "info",
 });
 

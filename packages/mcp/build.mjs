@@ -1,7 +1,7 @@
 // Publish bundle: inline @kie-ai-tool/core into a single self-contained file
 // so the published package never depends on the unpublished core workspace.
-// Third-party runtime deps stay external (declared in package.json); sqlite3 is
-// a native module and MUST stay external.
+// Third-party runtime deps stay external (declared in package.json). The task
+// store uses Node's built-in node:sqlite, so there is no native module.
 import { build } from "esbuild";
 import { readFileSync } from "fs";
 
@@ -12,9 +12,9 @@ await build({
   bundle: true,
   platform: "node",
   format: "esm",
-  target: "node18",
+  target: "node22",
   outfile: OUT,
-  external: ["sqlite3", "@modelcontextprotocol/sdk", "zod", "express"],
+  external: ["@modelcontextprotocol/sdk", "zod", "express"],
   logLevel: "info",
 });
 

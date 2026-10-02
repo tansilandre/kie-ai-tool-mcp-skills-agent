@@ -186,11 +186,16 @@ describe("MCP Apps upload widget", () => {
         success: true,
         download_url: "https://tempfile.redpandaai.co/final.png",
       });
+      // The structured result mirrors the whole text (hosts such as Claude
+      // Code show the model only the structured part), so the retention
+      // warning travels with it.
       expect(finalized.structuredContent).toEqual({
+        success: true,
         download_url: "https://tempfile.redpandaai.co/final.png",
         filename: "reference.png",
         content_type: "image/png",
         size: 9,
+        retention: "Temporary Kie URL; consume promptly.",
       });
     } finally {
       await client.close();
