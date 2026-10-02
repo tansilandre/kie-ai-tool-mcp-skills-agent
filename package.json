@@ -23,7 +23,8 @@
     "docs": "npm run build -w @kie-ai-tool/core && node scripts/gen-docs.mjs",
     "pricing:audit": "npm run build -w @kie-ai-tool/core && node scripts/audit-pricing.mjs",
     "pricing:refresh": "node scripts/refresh-pricing.mjs",
-    "pricing:refresh:test": "node --test scripts/__tests__/refresh-pricing.test.mjs"
+    "pricing:refresh:test": "node --test scripts/__tests__/refresh-pricing.test.mjs",
+    "bundle:plugin": "node scripts/bundle-plugin.mjs"
   },
   "author": "Andre Tansil (https://github.com/tansilandre)",
   "contributors": [
@@ -41,11 +42,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
-    "@types/node": "^20.10.0",
+    "@types/node": "^22.13.0",
     "esbuild": "^0.24.0",
     "typescript": "^5.3.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.13.0"
   }
 }

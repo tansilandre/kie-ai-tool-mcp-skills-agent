@@ -30,11 +30,13 @@ export function buildDiscoverPayload(instructions: string): DiscoverResult {
   };
 }
 
-// TASK_OUTPUT_SCHEMA covers generation tools whose success results carry
-// `structuredContent` through the transport normalization seam
-// (task_id required; status/api_type/error when present).
+// Output schemas list the fields a tool guarantees. They are loose objects
+// (extra fields allowed) because normalizeToolResult mirrors the whole JSON
+// text into structuredContent, which hosts like Claude Code show the model
+// instead of the text. TASK_OUTPUT_SCHEMA covers generation tools whose
+// success results carry a task_id.
 const TASK_OUTPUT_SCHEMA = z.toJSONSchema(
-  z.object({
+  z.looseObject({
     task_id: z.string(),
     status: z.string().optional(),
     api_type: z.string().optional(),
@@ -42,10 +44,12 @@ const TASK_OUTPUT_SCHEMA = z.toJSONSchema(
   }),
 );
 
-const UPLOAD_OUTPUT_SCHEMA = z.toJSONSchema(z.object({ media_id: z.string() }));
+const UPLOAD_OUTPUT_SCHEMA = z.toJSONSchema(
+  z.looseObject({ media_id: z.string() }),
+);
 
 const PREPARE_OUTPUT_SCHEMA = z.toJSONSchema(
-  z.object({
+  z.looseObject({
     plan_id: z.string(),
     status: z.enum(["prepared", "approved"]),
     approved: z.boolean(),
@@ -54,7 +58,7 @@ const PREPARE_OUTPUT_SCHEMA = z.toJSONSchema(
 );
 
 const FINALIZE_OUTPUT_SCHEMA = z.toJSONSchema(
-  z.object({
+  z.looseObject({
     download_url: z.string(),
     filename: z.string(),
     content_type: z.string(),
@@ -63,11 +67,11 @@ const FINALIZE_OUTPUT_SCHEMA = z.toJSONSchema(
 );
 
 const SUBMIT_OUTPUT_SCHEMA = z.toJSONSchema(
-  z.object({
+  z.looseObject({
     plan_id: z.string(),
     request_hash: z.string(),
     results: z.array(
-      z.object({
+      z.looseObject({
         index: z.number(),
         tool: z.string(),
         taskId: z.string().optional(),

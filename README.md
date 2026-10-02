@@ -37,50 +37,68 @@ price, wait for your yes, generate, and hand back the files.
 | OpenAI-compatible server | [`packages/openai`](packages/openai) | Selected image and video models behind OpenAI-shaped routes |
 | Shared core | [`packages/core`](packages/core) | kie.ai client, tool registry, pricing, plans, task store |
 | Skills | [`skills/`](skills) | Instructions agents load to use the toolkit well |
-| Agent | planned | A ready-made agent that plans, prices and produces media |
+| Agent | [`agents/kie-director.md`](agents/kie-director.md) | A ready-made agent that plans, prices, gets your approval, produces and checks media |
+| Plugin bundles | [`bundle/`](bundle) | The MCP server and CLI as single files with no dependencies, so a plain clone runs |
 
-## Run it today (from source)
+## Install
 
-You need Node.js 20 or newer and a kie.ai API key from [kie.ai/api-key](https://kie.ai/api-key).
+You need [Node.js](https://nodejs.org) 22.13 or newer and a kie.ai API key from
+[kie.ai/api-key](https://kie.ai/api-key). Nothing else: the server is one file with no dependencies.
+
+### Claude Code (plugin: MCP server, skills and agent in one step)
+
+In Claude Code:
+
+```text
+/plugin marketplace add tansilandre/kie-ai-tool-mcp-skills-agent
+/plugin install kie@kie-ai-tool
+```
+
+Claude Code asks for your kie.ai API key and keeps it in your system's secure storage. You can
+change it later with `/plugin configure kie@kie-ai-tool`. If you leave it empty, the plugin uses
+`KIE_API_KEY` from the shell that started Claude Code.
+
+Then ask in plain words, for example *"make a 1:1 product photo of a white ceramic mug with GPT
+Image 2 at 1K and save it to ./out"*. The `kie:generate-media` skill and the `kie-director`
+agent load on their own; the tools appear as `mcp__plugin_kie_kie__*`.
+
+From a terminal, the same install is:
+
+```bash
+claude plugin marketplace add tansilandre/kie-ai-tool-mcp-skills-agent
+claude plugin install kie@kie-ai-tool
+```
+
+### Any other MCP client (Claude Desktop, Cursor, Codex, WorkBuddy, …)
 
 ```bash
 git clone https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent
-cd kie-ai-tool-mcp-skills-agent
-npm ci
-npm run build
 ```
 
-### Add the MCP server to Claude Code
-
-```bash
-claude mcp add kie-ai --env KIE_AI_API_KEY=your-key -- node "$PWD/packages/mcp/dist/index.js"
-```
-
-### Add it to any other MCP client
-
-Put this in the client's MCP config (for Claude Desktop that is `claude_desktop_config.json`), with
-the absolute path to your clone:
+Then point the client at the bundled server, using the absolute path to your clone:
 
 ```json
 {
   "mcpServers": {
-    "kie-ai": {
+    "kie": {
       "command": "node",
-      "args": ["/absolute/path/to/kie-ai-tool-mcp-skills-agent/packages/mcp/dist/index.js"],
-      "env": { "KIE_AI_API_KEY": "your-key" }
+      "args": ["/absolute/path/to/kie-ai-tool-mcp-skills-agent/bundle/kie-mcp.mjs"],
+      "env": { "KIE_API_KEY": "your-key" }
     }
   }
 }
 ```
 
-### Use the CLI
+For Codex: `codex mcp add kie --env KIE_API_KEY=your-key -- node /absolute/path/to/kie-ai-tool-mcp-skills-agent/bundle/kie-mcp.mjs`.
+
+### CLI
 
 ```bash
-export KIE_AI_API_KEY=your-key
-node packages/cli/dist/index.js --help
-node packages/cli/dist/index.js search_models --query veo
-node packages/cli/dist/index.js get_model_schema --model gpt-image-2-text-to-image
-node packages/cli/dist/index.js get_balance
+export KIE_API_KEY=your-key
+node bundle/kie-cli.mjs --help
+node bundle/kie-cli.mjs search_models --query veo
+node bundle/kie-cli.mjs get_model_schema --model gpt-image-2-text-to-image
+node bundle/kie-cli.mjs get_balance
 ```
 
 ## How spending works

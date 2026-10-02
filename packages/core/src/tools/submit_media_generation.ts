@@ -150,25 +150,40 @@ export const submitMediaGenerationTool: ToolDef<
           }
         },
       );
-      if (results.some((result) => result.error)) {
-        await ctx.db.failGenerationPlan(planId, results);
-        throw new Error("One or more plan items failed.");
+      // From here on, paid tasks may exist. Never throw: an error envelope
+      // loses the task IDs, and its generic "try again" advice invites the
+      // agent to prepare and pay for the same work twice.
+      const failed = results.some((result) => result.error);
+      let recordWarning: string | undefined;
+      try {
+        if (failed) await ctx.db.failGenerationPlan(planId, results);
+        else await ctx.db.finishGenerationPlan(planId, results);
+      } catch (error) {
+        recordWarning = `The tasks below were sent to kie.ai, but saving the outcome locally failed (${error instanceof Error ? error.message : String(error)}). Do not submit this work again; follow the task IDs below.`;
       }
-      await ctx.db.finishGenerationPlan(planId, results);
+      const created = results.filter((result) => result.taskId).length;
+      const body = {
+        success: !failed,
+        planId,
+        requestHash: stored.requestHash,
+        results,
+        ...(failed
+          ? {
+              error: "One or more plan items failed.",
+              note:
+                created > 0
+                  ? `${created} task(s) were created and will be charged. Wait for them with wait_for_task; do not resubmit them. Only the failed items need a new plan.`
+                  : "No task was created, so nothing was charged.",
+            }
+          : {}),
+        ...(recordWarning ? { warning: recordWarning } : {}),
+      };
       return {
+        ...(failed ? { isError: true } : {}),
         content: [
           {
             type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                planId,
-                requestHash: stored.requestHash,
-                results,
-              },
-              null,
-              2,
-            ),
+            text: JSON.stringify(body, null, 2),
           },
         ],
         structuredContent: {

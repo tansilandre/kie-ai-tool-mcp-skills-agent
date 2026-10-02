@@ -1,7 +1,7 @@
 # Streamable HTTP transport image for @kie-ai-tool/mcp.
 # Build context MUST be the monorepo root (it needs packages/core + workspaces):
 #   docker build -f packages/mcp/Dockerfile -t kie-ai-mcp-http .
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 
 # Copy the whole workspace (sources included) so npm wires the workspace symlinks
@@ -15,7 +15,7 @@ RUN npm run build -w @kie-ai-tool/core \
   && npm run bundle -w @kie-ai-tool/mcp
 
 # --- runtime image -------------------------------------------------------
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     MCP_TRANSPORT=http \
@@ -23,9 +23,9 @@ ENV NODE_ENV=production \
     MCP_HTTP_PORT=3000 \
     KIE_AI_DB_PATH=/data/tasks.db
 
-# The bundle's external runtime deps (sqlite3 native, @modelcontextprotocol/sdk,
-# zod, express) are reused from the build stage's node_modules — same alpine
-# base, so the compiled sqlite3 binary is binary-compatible (no native rebuild).
+# The bundle's external runtime deps (@modelcontextprotocol/sdk, zod, express)
+# are reused from the build stage's node_modules. The task store uses Node's
+# built-in node:sqlite, so there is no native module to rebuild.
 COPY packages/mcp/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/mcp/dist ./dist

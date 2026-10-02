@@ -2,6 +2,7 @@ import {
   type PlanItemDetails,
   prepareGenerationPlan,
 } from "../generation-plan.js";
+import { MISSING_API_KEY_MESSAGE } from "../kie-ai-client.js";
 import { PrepareMediaGenerationSchema, RunModelSchema } from "../types.js";
 import { requireCatalog } from "./catalog-helpers.js";
 import type {
@@ -135,6 +136,13 @@ export const prepareMediaGenerationTool: ToolDef<
   async run(args, ctx: ToolContext): Promise<ToolResult> {
     try {
       const request = PrepareMediaGenerationSchema.parse(args);
+      // Don't ask a human to approve a price for a plan that can't run.
+      if (
+        typeof ctx.client.hasApiKey === "function" &&
+        !ctx.client.hasApiKey()
+      ) {
+        throw new Error(MISSING_API_KEY_MESSAGE);
+      }
       const tools = new Map(
         request.items
           .map((item) => [item.tool, ctx.getTool(item.tool)])

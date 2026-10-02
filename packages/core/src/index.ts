@@ -2,7 +2,7 @@
 // Both the MCP server and the CLI consume this single module so that tools,
 // schemas, the API client and the task database have one source of truth.
 // TaskDatabase lives behind the "./database" subpath so the OpenAI transport
-// bundle does not pull the sqlite3 native module transitively.
+// bundle does not pull in the SQLite task store (node:sqlite) transitively.
 
 export * from "./catalog.js";
 export * from "./context.js";

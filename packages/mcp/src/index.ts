@@ -10,6 +10,7 @@ import {
   KieAiClient,
   type KieAiConfig,
   KieCatalog,
+  MISSING_API_KEY_MESSAGE,
   TOOL_REGISTRY,
   type ToolContext,
   ToolResult,
@@ -128,9 +129,10 @@ export class KieAiMcpServer {
     };
 
     if (!this.config.apiKey) {
-      throw new Error(
-        "Set KIE_AI_API_KEY (or KIE_API_KEY) to your kie.ai API key from https://kie.ai/api-key",
-      );
+      // Start anyway: a server that exits shows up as "failed to connect"
+      // with no reason, while a running one can tell the agent (and so the
+      // user) how to add the key on every tool call.
+      console.error(`[Kie.ai MCP] ${MISSING_API_KEY_MESSAGE}`);
     }
 
     this.client = new KieAiClient(this.config);
