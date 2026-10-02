@@ -1,7 +1,7 @@
 {
   "name": "kie",
   "displayName": "kie.ai toolkit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Make images, video, music and speech with any kie.ai model: live catalog, prices and model health, a plan you approve before credits are spent, skills and a ready-made media agent.",
   "author": {
     "name": "Andre Tansil",

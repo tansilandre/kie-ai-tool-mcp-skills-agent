@@ -26,7 +26,7 @@ in [`docs/ROADMAP.md`](docs/ROADMAP.md); read it before starting a feature.
    Conventional commit messages (`feat:`, `fix:`, `docs:`, `chore:`, `test:`). The commit body says
    why, not just what.
 5. **Run the quality gates before every push:** `npm run build && npm run typecheck && npm test &&
-   npm run check`. Use the npm scripts, never a bare `npx <tool>`: in a checkout without
+   npm run check && npm run skills:check`. Use the npm scripts, never a bare `npx <tool>`: in a checkout without
    `node_modules`, `npx biome` downloads an unrelated npm package called `biome`.
 6. **Do not invent model names, fields or prices.** Read them from kie.ai's live catalog
    (`GET /api/v1/models`, `/api/v1/models/{model}/schema`) or the docs, and cite the source.

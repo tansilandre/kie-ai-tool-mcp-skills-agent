@@ -14,7 +14,8 @@ from the projects below. Their copyright notices are kept as their licenses requ
 
 | Project | License | What came from it |
 |---|---|---|
-| [higgsfield-ai/skills](https://github.com/higgsfield-ai/skills) | MIT, Copyright (c) 2026 Higgsfield AI | Skill structure, packaging approach and prompt-craft rules that the creative skills adapt for kie.ai. Each adapted skill names its source file. |
+| [higgsfield-ai/skills](https://github.com/higgsfield-ai/skills) | MIT, Copyright (c) 2026 Higgsfield AI | Skill structure, the skill validator's rules, and prompt craft adapted for kie.ai in `image-prompts`, `video-prompts`, `product-photoshoot`, `youtube-thumbnail` and `short-video`. Each skill's Sources section names the files it adapted. |
+| [tansilandre/ai-videographer-kelas](https://github.com/tansilandre/ai-videographer-kelas) | By Andre Tansil, who also owns this repo; the adapted text is covered by this repo's MIT license | The AI Videographer harness's prompt rules and production workflow, verified on kie.ai: image and video prompt craft, reference sheets, storyboard reviews, the dialogue fit rule, the edit stage. |
 
 Higgsfield's Python SDK ([higgsfield-ai/higgsfield-client](https://github.com/higgsfield-ai/higgsfield-client),
 Apache-2.0) and CLI ([higgsfield-ai/cli](https://github.com/higgsfield-ai/cli), MIT) were studied for
