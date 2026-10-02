@@ -627,3 +627,39 @@ describe("review fixes", () => {
     expect(body.error).toContain("spend settings are invalid");
   });
 });
+
+describe("plugin settings and the person's own environment", () => {
+  const names = [
+    "KIE_AI_APPROVAL",
+    "KIE_AI_PLUGIN_APPROVAL",
+    "KIE_AI_API_KEY",
+    "KIE_AI_PLUGIN_API_KEY",
+  ];
+  const saved: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const name of names) saved[name] = process.env[name];
+  });
+  afterEach(() => {
+    for (const name of names) {
+      if (saved[name] === undefined) delete process.env[name];
+      else process.env[name] = saved[name];
+    }
+  });
+
+  test("a real plugin setting wins over the shell", async () => {
+    const { envSetting } = await import("../spend-policy.js");
+    process.env.KIE_AI_PLUGIN_APPROVAL = "chat";
+    process.env.KIE_AI_APPROVAL = "auto";
+    expect(envSetting("KIE_AI_APPROVAL")).toBe("chat");
+  });
+
+  test("an unfilled plugin placeholder falls back to the shell (e.g. under Codex)", async () => {
+    const { envSetting } = await import("../spend-policy.js");
+    process.env.KIE_AI_PLUGIN_APPROVAL = "${user_config.approval_mode}";
+    process.env.KIE_AI_APPROVAL = "chat";
+    expect(envSetting("KIE_AI_APPROVAL")).toBe("chat");
+    process.env.KIE_AI_PLUGIN_API_KEY = "${user_config.kie_api_key}";
+    process.env.KIE_AI_API_KEY = "from-shell";
+    expect(envSetting("KIE_AI_API_KEY")).toBe("from-shell");
+  });
+});
