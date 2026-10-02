@@ -59,11 +59,8 @@ jobs:
           node kie-cli.mjs --help > /dev/null
           KIE_AI_API_KEY=ci-not-a-real-key KIE_AI_DB_PATH=/tmp/bundle-smoke/tasks.db node kie-cli.mjs list_models --filter veo --json | grep -q veo3_generate_video
 
-      - name: Verify publishable packages
-        run: |
-          npm pack -w @kie-ai-tool/openai-server --dry-run
-          npm pack -w @kie-ai-tool/mcp --dry-run
-          npm pack -w @kie-ai-tool/cli --dry-run
+      - name: Verify what each package would publish
+        run: npm run pack:check
 
       - name: Verify patch formatting
         run: git diff --check

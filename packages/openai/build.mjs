@@ -16,7 +16,7 @@ await build({
   platform: "node",
   format: "esm",
   target: "node18",
-  sourcemap: true,
+  sourcemap: false,
   external: ["express"],
   define: {
     __PACKAGE_VERSION__: JSON.stringify(packageJson.version),

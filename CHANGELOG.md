@@ -28,6 +28,10 @@ names; the upstream versions below (MCP 5.1.0, CLI 0.9.0, OpenAI transport 0.7.0
 - Veo 3.1 Lite: `veo3_generate_video` takes `model: "veo3_lite"`, `resolution` (720p, 1080p, 4k),
   `duration` (4, 6, 8) and `generationType`, and the safe default is now Lite at 720p. Exact price
   in the rate card: 30 credits at 720p, 35 at 1080p, matching live charges.
+- `npm run pack:check` (also in CI and the first-publish script): fails if a package would ship
+  test files, source maps, or compiler output instead of the bundle. `@kie-ai-tool/mcp` and
+  `@kie-ai-tool/cli` now ship only their single bundled `dist/index.js`; `openai-server` no longer
+  ships source maps.
 - `gpt_image_2` accepts all 16 aspect ratios GPT Image 2 supports and `background` (transparent
   cut-outs at 1K).
 - Spend controls (design: `docs/design/spend-controls.md`). Approval modes in

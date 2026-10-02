@@ -65,7 +65,7 @@
     "node": ">=22.13.0"
   },
   "files": [
-    "dist",
+    "dist/index.js",
     "README.md",
     "LICENSE"
   ]
