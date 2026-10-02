@@ -1,4 +1,4 @@
-import type { ToolDef } from "@felores/kie-ai-core";
+import type { ToolDef } from "@kie-ai-tool/core";
 
 /** Direct provider calls are an explicit compatibility opt-in, never the default. */
 export function allowsDirectGeneration(): boolean {

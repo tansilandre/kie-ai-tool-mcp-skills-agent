@@ -1,5 +1,5 @@
 {
-  "name": "@felores/kie-ai-mcp-server",
+  "name": "@kie-ai-tool/mcp",
   "version": "5.1.0",
   "description": "MCP server for Kie.ai APIs: image, video, music and speech generation across Nano Banana, Veo3, Suno, ElevenLabs, ByteDance, Qwen, Runway, Midjourney, Wan, MiniMax H3, Kling, GPT Image 2, Flux Kontext, Recraft, Ideogram, Topaz, HappyHorse and more.",
   "main": "dist/index.js",
@@ -14,7 +14,7 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "start": "node --env-file=../../.env dist/index.js",
     "dev": "tsx --env-file=../../.env src/index.ts",
-    "prepack": "npm run build -w @felores/kie-ai-core && npm run bundle"
+    "prepack": "npm run build -w @kie-ai-tool/core && npm run bundle"
   },
   "keywords": [
     "mcp",
@@ -42,15 +42,19 @@
     "ai-api",
     "unified-ai"
   ],
-  "author": "felores",
+  "author": "Andre Tansil (https://github.com/tansilandre)",
+  "contributors": [
+    "andrewlwn77 (https://github.com/andrewlwn77)",
+    "felores (https://github.com/felores)"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/felores/kie-cli-mcp.git"
+    "url": "git+https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent.git"
   },
-  "homepage": "https://github.com/felores/kie-cli-mcp#readme",
+  "homepage": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent#readme",
   "bugs": {
-    "url": "https://github.com/felores/kie-cli-mcp/issues"
+    "url": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent/issues"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
@@ -64,7 +68,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@felores/kie-ai-core": "*",
+    "@kie-ai-tool/core": "*",
     "@modelcontextprotocol/client": "^2.0.0",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.8",

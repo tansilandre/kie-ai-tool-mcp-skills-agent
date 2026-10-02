@@ -1,4 +1,4 @@
-import { KieAiClient } from "@felores/kie-ai-core/client";
+import { KieAiClient } from "@kie-ai-tool/core/client";
 import express, {
   type NextFunction,
   type Request,

@@ -18,8 +18,8 @@ import {
   Veo3GenerateSchema,
   Wan30VideoSchema,
   ZImageSchema,
-} from "@felores/kie-ai-core";
-import type { KieAiClient } from "@felores/kie-ai-core/client";
+} from "@kie-ai-tool/core";
+import type { KieAiClient } from "@kie-ai-tool/core/client";
 
 export type OpenAiMediaType = "image" | "video";
 export type StatusStrategy =

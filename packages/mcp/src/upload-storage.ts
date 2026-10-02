@@ -18,7 +18,7 @@ import {
   type UploadCapability,
   type UploadCapabilityRequest,
   validateUploadBytes,
-} from "@felores/kie-ai-core";
+} from "@kie-ai-tool/core";
 import type { Request, Response } from "express";
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;

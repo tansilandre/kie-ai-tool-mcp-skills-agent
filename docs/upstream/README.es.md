@@ -1,3 +1,5 @@
+> **Archived upstream README** from [felores/kie-cli-mcp](https://github.com/felores/kie-cli-mcp) at commit 44c7701 (2026-08-25), kept for reference. Package names and install commands here are the upstream ones. For this fork, read the [main README](../../README.md).
+
 <div align="center">
 <pre>
 ██╗  ██╗██╗███████╗

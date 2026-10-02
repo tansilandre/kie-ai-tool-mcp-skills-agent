@@ -1,8 +1,8 @@
-# @felores/kie-cli
+# @kie-ai-tool/cli
 
 Standalone command-line interface for the [Kie.ai](https://kie.ai) APIs: generate
 images, video, music and speech from your terminal. Same models as the
-[`@felores/kie-ai-mcp-server`](https://www.npmjs.com/package/@felores/kie-ai-mcp-server)
+`@kie-ai-tool/mcp`
 MCP server, no MCP client required.
 
 The CLI and the MCP server are generated from one shared tool registry, so both
@@ -11,8 +11,12 @@ independently.
 
 ## Install
 
+> **Not on npm yet.** This package is part of [kie-ai-tool-mcp-skills-agent](https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent). Until it is published, build it from source as the root README explains.
+
 ```bash
-npm install -g @felores/kie-cli
+git clone https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent
+cd kie-ai-tool-mcp-skills-agent && npm ci && npm run build
+node packages/cli/dist/index.js --help
 ```
 
 ## Setup

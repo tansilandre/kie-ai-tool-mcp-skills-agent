@@ -1,12 +1,43 @@
-# Agent Guidelines for kie-ai-mcp-server
+# Agent Guidelines for kie-ai-tool-mcp-skills-agent
 
-## Project Goal
-**Seamless integration with Kie.ai API** - Kie.ai provides access to the best AI models (Veo 3, Runway, Nano Banana, Suno, etc.) through one affordable, developer-friendly API. Our MCP server bridges these powerful AI capabilities to Claude Desktop and other MCP clients.
+`CLAUDE.md` is a symlink to this file, so Claude Code, Codex and other agents read the same rules.
+
+## Project goal
+
+An open-source kie.ai toolkit that any AI agent can use: MCP server, CLI, agent skills and a
+ready-made agent. It must be powerful (every kie.ai model), safe with money (no spend without the
+human's yes, hard caps in code), usable everywhere (Claude Code, Codex, Cursor, Claude Desktop,
+WorkBuddy, any MCP client; macOS, Linux, Windows) and easy to install. The plan and its status are
+in [`docs/ROADMAP.md`](docs/ROADMAP.md); read it before starting a feature.
+
+## Rules for agents working on this repo
+
+1. **Never print, log, commit or paste an API key.** Read `KIE_AI_API_KEY` from the environment
+   only. Test fixtures use obviously fake keys.
+2. **No paid kie.ai call without the human's explicit yes in this session.** Free calls (catalog,
+   schema, price, success rate, balance, task status) are fine. When a live test is approved, use
+   the cheapest model at the lowest resolution (for example gpt-image-2 at 1K, Veo 3.1 Lite at
+   720p) and report the credits it actually cost.
+3. **Every paid generation path goes through prepare → approve → submit.** Do not add a code path
+   that spends credits without a plan, and do not weaken the approval or credit caps to make a
+   test pass.
+4. **Work on a branch and land it through a pull request** with green CI (see "Landing the plane").
+   Conventional commit messages (`feat:`, `fix:`, `docs:`, `chore:`, `test:`). The commit body says
+   why, not just what.
+5. **Run the quality gates before every push:** `npm run build && npm run typecheck && npm test &&
+   npm run check`. Use the npm scripts, never a bare `npx <tool>`: in a checkout without
+   `node_modules`, `npx biome` downloads an unrelated npm package called `biome`.
+6. **Do not invent model names, fields or prices.** Read them from kie.ai's live catalog
+   (`GET /api/v1/models`, `/api/v1/models/{model}/schema`) or the docs, and cite the source.
+7. **Credit upstream work.** Code or text adapted from another project keeps its license notice
+   and is listed in [`NOTICE.md`](NOTICE.md).
+8. Keep install commands pointing only at things that exist. This fork is not on npm yet, so never
+   tell users to `npx` an `@kie-ai-tool/*` package until it is published.
 
 ## Authoritative MCP Documentation
 - Start with the official MCP documentation index at https://modelcontextprotocol.io/llms.txt for current protocol and MCP Apps contracts, then follow its relevant source links.
 
-## Immediate Goals
+## Design direction (from upstream)
 - **Simplify tool interfaces** - Reduce cognitive load for users
 - **Consolidate related tools** - Example: merge `generate_nano_banana`, `edit_nano_banana`, and `upscale_nano_banana` into a single unified `nano_banana` tool that auto-detects mode based on parameters (presence of `image_urls` = edit mode, presence of `scale` = upscale mode, etc.)
 - **Maintain backwards compatibility** when possible
@@ -57,14 +88,14 @@ For tools requiring callback URLs (like Veo3, Suno):
 One shared `core` feeds two independently installable surfaces:
 
 ```text
-packages/core   @felores/kie-ai-core  (PRIVATE, never published; bundled into both)
+packages/core   @kie-ai-tool/core  (PRIVATE, never published; bundled into both)
   src/tools/         tool registry, one ToolDef per model (single source of truth)
   src/kie-ai-client.ts  KieAiClient -> Kie.ai API
   src/database.ts       TaskDatabase (SQLite task persistence)
   src/types.ts          Zod schemas
-packages/mcp    @felores/kie-ai-mcp-server  (bin: kie-ai-mcp-server)
+packages/mcp    @kie-ai-tool/mcp  (bin: kie-ai-mcp-server)
   src/index.ts          MCP adapter: listTools + dispatch derived from TOOL_REGISTRY
-packages/cli    @felores/kie-cli            (bin: kie-cli)
+packages/cli    @kie-ai-tool/cli            (bin: kie-cli)
   src/index.ts          CLI adapter: yargs commands derived from TOOL_REGISTRY
 ```
 
@@ -102,64 +133,6 @@ Adding a model is one tool file plus one client method. The MCP server and CLI d
 | Registry tests | `packages/core/src/__tests__/registry.test.ts` |
 | Tool documentation | `docs/TOOLS.md` |
 
-## Agent Overview
-
-### **Artist Agent** (`ai_docs/artist.md`)
-**Purpose**: Static image generation and editing workflows
-
-**Primary Models**:
-- **Nano Banana**: Google's Gemini 2.5 Flash - unified generation/editing/upscaling
-- **Seedream**: ByteDance's advanced image model - text-to-image + editing
-- **Qwen**: Alibaba's image model - text-to-image + editing  
-- **OpenAI 4o**: GPT-4o image capabilities - generation + editing + variants
-- **Midjourney**: Artistic image generation (6 modes)
-- **Flux Kontext**: Context-aware image generation + editing
-- **Ideogram**: Typography-focused image generation + reframing
-- **Recraft**: Specialized background removal
-
-**Key Capabilities**:
-- Unified tools that auto-detect mode (generate vs edit vs upscale)
-- Smart parameter validation and mode switching
-- Professional image editing with mask-based modifications
-- Multiple aspect ratios and quality tiers
-- Batch processing and variant generation
-
-### **Filmographer Agent** (`ai_docs/filmographer.md`)  
-**Purpose**: Video generation, editing, and motion workflows
-
-**Primary Models**:
-- **Veo3**: Google's premium cinematic video (text + optional images)
-- **Sora 2**: OpenAI's advanced video model (text/image/storyboard modes)
-- **Kling**: Multi-tier video generation (v2.1-pro control, v2.5-turbo speed)
-- **ByteDance Seedance**: Professional video (lite/pro quality tiers)
-- **Hailuo**: Fast video generation (standard/pro quality)
-- **Wan**: Quick video creation with prompt expansion
-- **Midjourney Video**: Image-to-video with motion control
-- **Runway Aleph**: Video editing and enhancement
-
-**Key Capabilities**:
-- Decision tree model selection based on user input
-- Start/end frame control for precise transitions
-- Multiple quality tiers and aspect ratios
-- Text-to-video, image-to-video, and storyboard modes
-- CFG fine-tuning and motion parameter control
-
-### **Agent-Model Relationships**
-
-**Unified Tool Design**: Both agents use unified tools that consolidate multiple capabilities:
-- Single interface handles generation, editing, and transformation modes
-- Smart parameter detection automatically routes to correct API endpoint
-- Reduces cognitive load while maintaining full functionality
-
-**Workflow Integration**:
-- **Artist**: Focuses on static visual creation with editing workflows
-- **Filmographer**: Handles motion, timing, and sequential visual narratives
-- **Cross-over**: Models like Midjourney serve both agents (image generation vs video)
-
-**Quality Tiers**: Both agents provide tiered quality options:
-- **Standard**: Fast generation for prototyping and casual use
-- **Pro/Premium**: High-fidelity output for professional work
-- **Turbo/Lite**: Optimized for speed and cost efficiency
 
 ## Database & Task Management
 
@@ -256,181 +229,17 @@ if (apiType === 'veo3') {
 - **Statistics**: Analytics and usage tracking tables
 - **Batch Operations**: Bulk status updates and cleanup operations
 
-## Publishing to NPM
+## Releases
 
-### Package Information
-- **Published packages** (versioned independently):
-  - `@felores/kie-ai-mcp-server` in `packages/mcp` (bin: `kie-ai-mcp-server`)
-  - `@felores/kie-cli` in `packages/cli` (bin: `kie-cli`)
-  - `@felores/kie-ai-openai-server` in `packages/openai` (bin: `kie-ai-openai-server`)
-  - `@felores/kie-ai-core` is private and bundled into the published packages.
-- **NPM account**: `felores`
-- **Registry**: https://registry.npmjs.org/
-- **2FA**: Enabled (requires OTP for publishing)
+Not on npm yet. The `@kie-ai-tool` npm scope must be reserved first; until then nothing is
+published and `release.yml` (triggered by a `v*` tag or by hand) must not be run. Once publishing
+is set up:
 
-### Version Management (CRITICAL)
-**ALWAYS check and update versions when making user-facing changes:**
-
-### Release Workflow (Canonical)
-
-1. Bump each affected public package independently: MCP changes require `packages/mcp/package.json` and `packages/mcp/src/index.ts`; CLI changes require `packages/cli/package.json`; OpenAI transport changes require `packages/openai/package.json` and `packages/openai/src/version.ts`. Update `package-lock.json`, `CHANGELOG.md`, model/feature references in BOTH READMEs (`README.md` and `README.es.md`), `docs/TOOLS.md` (`npm run docs`), and relevant `docs/kie/` contracts.
-2. Verify locally: `npm run typecheck`, `npm run build`, `npm test`, and `npm pack --dry-run` for every affected public package.
-3. Commit the release preparation on a branch, push it, open a pull request, and merge only after the required `Verify` check passes. Update local `main`, create and push tag `vX.Y.Z`, then create the GitHub Release with notes from the changelog.
-4. Publish affected packages to npm with a fresh OTP when manual publishing is required. The release workflow also publishes to npm and GitHub Packages (`https://npm.pkg.github.com/`); monitor its run to completion.
-5. A release is complete only when: commits and tag are pushed, the GitHub Release is visible, intended versions resolve from npm, every intended package has a successful GitHub Packages publish step, and the working tree is clean.
-
-1. **Choose the smallest proportionate bump for each affected package**:
-   - Judge the package's public user contract, not the provider's model number, internal endpoint, or marketing version.
-   - **Patch (x.x.X)**: Bug fixes, documentation, and internal improvements that preserve the public contract.
-   - **Minor (x.X.0)**: New models, tools, parameters, and routine provider-model replacements under an existing tool or route. Provider-specific parameter churn does not by itself justify an ecosystem-wide major.
-   - **Major (X.0.0)**: Intentional package-wide breaks such as changing the MCP/CLI transport contract or removing widely used public commands/model IDs without a compatibility path. Require explicit human confirmation before any major bump.
-   - For `0.x` packages, use the next minor as the normal compatibility boundary. Do not jump to `1.0.0` solely because a provider model schema changed.
-   - Version public packages independently. Do not synchronize unrelated packages to the same major version.
-
-2. **Files to update** when bumping the MCP server:
-   - `packages/mcp/package.json` → `"version": "X.Y.Z"`
-   - `packages/mcp/src/index.ts` → `version: "X.Y.Z"` (in Server constructor)
-   - `CHANGELOG.md` → Add new version section with changes
-   - `README.md` → Update changelog section (and mirror in `README.es.md`)
-   - CLI bumps require `packages/cli/package.json`.
-
-3. **Pre-publish checklist**:
-   ```bash
-   npm run build                    # Must succeed
-   npx tsc --noEmit                 # Must have no errors
-   npm publish --dry-run            # Preview what will be published
-   ```
-
-4. **Publishing workflow**:
-   ```bash
-   # Check login status
-   npm whoami                       # Should return: felores
-   
-   # Publish (requires 2FA code)
-   npm publish --otp=XXXXXX         # Replace XXXXXX with 6-digit code
-   
-   # Verify publication
-   npm view @felores/kie-ai-mcp-server version
-   ```
-
-5. **Git workflow** (after successful publish):
-   ```bash
-   git add .
-   git commit -m "Release vX.Y.Z"
-   git tag vX.Y.Z
-   git push origin main --tags
-   ```
-
-6. **Creating GitHub releases** (optional but recommended):
-    ```bash
-    # Agent has access to gh CLI for creating releases
-    gh release create vX.Y.Z \
-      --title "Release vX.Y.Z" \
-      --notes "See CHANGELOG.md for details"
-    ```
-
-7. **Automated Publishing via GitHub Actions**:
-    - **Release workflow**: `.github/workflows/release.yml` - Full automated publishing
-    - **Publish workflow**: `.github/workflows/publish.yml` - GitHub Packages only
-    - **Trigger**: Pushing a git tag (vX.Y.Z) automatically triggers release workflow
-    - **Permissions**: Requires `contents: write` and `packages: write` in GitHub Actions
-
-8. **GitHub Packages Integration**:
-    - **Registry**: https://npm.pkg.github.com/
-    - **Package**: @felores/kie-ai-mcp-server
-    - **Installation**: `npm install @felores/kie-ai-mcp-server --registry https://npm.pkg.github.com/`
-    - **Authentication**: Requires GitHub token with `read:packages` scope
-
-### Repository Metadata Management
-- **About section**: Updated with concise description and npm package link
-- **Topics**: Added relevant tags for discoverability (mcp, kie-ai, ai, etc.)
-- **Homepage**: Links to npm package page
-- **Release notes**: Include installation instructions and key features
-
-### Important Notes
-- **Never publish without updating CHANGELOG.md** - users need to know what changed
-- **Never skip version bump** - even for small fixes
-- **Test build before publishing** - `npm run build` must succeed
-- **Check package size** - should be ~10-15KB (shown in dry-run)
-- **2FA timeout** - OTP codes expire quickly, have it ready before running publish
-- **Package.json files field** - Only dist/, README.md, LICENSE are published (configured)
-- **GitHub Actions secrets**: Ensure `NPM_TOKEN` and `GITHUB_TOKEN` are properly configured
-- **Release automation**: Tag pushes trigger automated publishing to both NPM and GitHub Packages
-- **Repository consistency**: Keep both READMEs (`README.md`, `README.es.md`), CHANGELOG, and package.json in sync
-
-## Release Best Practices
-
-### Pre-Release Checklist
-1. **Version consistency**: All version files updated (package.json, index.ts, CHANGELOG.md)
-2. **Documentation**: `README.md` and `README.es.md` reflect current tool names and features
-3. **Build verification**: Agent runs `npm run build` - must succeed without errors
-4. **Type checking**: Agent runs `npx tsc --noEmit` - must have no errors
-5. **Tests**: Agent runs `npm test` - must pass (if tests exist)
-6. **Local testing with MCP Inspector** *(manual user step - after agent hands off dist/)*: 
-   - Agent builds the project and hands dist/ to user
-   - User runs, from the repository root: `npx @modelcontextprotocol/inspector node --env-file=.env packages/mcp/dist/index.js`
-   - User verifies in Inspector UI:
-     - ListTools response shows all tools including new ones
-     - Test new/critical tools in Tools tab with sample parameters
-     - Resources tab displays documentation correctly
-     - Notifications pane shows no server errors
-     - Test all modes for unified tools (e.g., image-to-video with and without image_url)
-   - User confirms readiness before proceeding to publishing
-7. **Changelog**: Detailed CHANGELOG.md entry with user-facing changes
-8. **Git status**: Clean working directory with all changes committed
-
-### Release Process Options
-
-#### Option 1: Manual Release (Recommended for testing)
-```bash
-# 1. Update versions and documentation
-# 2. Commit changes
-git add .
-git commit -m "Release vX.Y.Z"
-
-# 3. Create and push tag
-git tag vX.Y.Z
-git push origin main --tags
-
-# 4. Create GitHub release
-gh release create vX.Y.Z --title "Release vX.Y.Z" --notes "Detailed release notes"
-
-# 5. Publish to NPM manually
-npm publish --otp=XXXXXX
-```
-
-#### Option 2: Automated Release (Production)
-```bash
-# 1. Update versions and documentation
-# 2. Commit changes
-git add .
-git commit -m "Release vX.Y.Z"
-
-# 3. Create and push tag (triggers automated workflow)
-git tag vX.Y.Z
-git push origin main --tags
-
-# 4. Monitor GitHub Actions for successful publishing
-```
-
-### Release Troubleshooting
-
-#### Common Issues
-- **GitHub Actions failures**: Check secrets configuration and permissions
-- **NPM publish failures**: Verify 2FA, package name, and registry access
-- **Version conflicts**: Ensure all version files are synchronized
-- **Build failures**: Check TypeScript compilation and dependencies
-
-#### Recovery Steps
-1. **Failed automated release**: Delete the tag and retry after fixing issues
-2. **NPM rollback**: Use `npm deprecate` for problematic versions
-3. **GitHub release cleanup**: Delete and recreate release with correct notes
-
-### Post-Release Tasks
-1. **Verify installation**: Test `npm install @felores/kie-ai-mcp-server`
-2. **Check GitHub release**: Ensure notes and assets are correct
-3. **Update documentation**: Update any external references if needed
-4. **Monitor issues**: Watch for user feedback and bug reports
+- Versions follow semver per package; bump the version, update `CHANGELOG.md` and the package
+  README in the same pull request.
+- `release.yml` publishes the public packages with npm provenance using the `NPM_TOKEN` secret.
+  `@kie-ai-tool/core` stays private and is bundled into each public package.
+- Run `npm pack -w <package> --dry-run` before tagging and check the file list.
 
 ## MCP Tool Architecture & Schema Design
 
@@ -661,31 +470,36 @@ This architecture ensures a clean, maintainable codebase while providing an exce
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until the change is merged through a verified pull request and local `main` matches `origin/main`.
+Work is not complete until the change is merged through a pull request with green CI and local
+`main` matches `origin/main`.
 
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **DELIVER THROUGH A PULL REQUEST** - Direct pushes to protected `main` are not allowed:
+1. **Run the quality gates** if code changed: build, typecheck, tests, Biome.
+2. **Deliver through a pull request**, never a direct push to `main`:
    ```bash
-   git switch -c <topic-branch>  # when work began on main
-   bd sync
-   git push -u origin <topic-branch>
-   gh pr create
-   gh pr checks --watch
+   git switch -c <type>/<topic>      # e.g. feat/live-catalog
+   git push -u origin <type>/<topic>
+   gh pr create --repo tansilandre/kie-ai-tool-mcp-skills-agent
+   # wait for the Verify check to pass, then
    gh pr merge --squash --delete-branch
-   git switch main
-   git pull --ff-only
-   git status  # MUST show main up to date with origin/main
+   git switch main && git pull --ff-only
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - Pull request merged, topic branch deleted, and local `main` synchronized
-7. **Hand off** - Provide context for next session
+   Always pass `--repo tansilandre/kie-ai-tool-mcp-skills-agent` (or run `gh repo set-default`
+   first): this repo shares history with felores/kie-cli-mcp, and a pull request must never be
+   opened there by accident. The `upstream` remote has its push URL disabled for the same reason.
+3. **File issues** for anything left over, and update `docs/ROADMAP.md` when a step lands.
+4. **Hand off**: say what changed, what verification found, and what is next.
 
-**CRITICAL RULES:**
-- Work is NOT complete until the pull request is merged and `main` is synchronized
-- Never push directly to `main` or bypass the required `Verify` check
-- Never say "ready to merge when you are"; complete the verified pull-request workflow
-- If CI or merge fails, resolve the failure on the topic branch and retry
+If CI fails, fix it on the topic branch and push again. Do not bypass the `Verify` check.
+
+## Pulling upstream fixes
+
+`upstream` points at felores/kie-cli-mcp (fetch only). To bring in an upstream fix:
+
+```bash
+git fetch upstream
+git switch -c chore/upstream-sync
+git merge upstream/main   # or cherry-pick the specific commits
+```
+
+Package names differ (`@felores/*` upstream, `@kie-ai-tool/*` here), so expect conflicts in
+`package.json` files and imports.

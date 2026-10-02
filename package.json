@@ -11,29 +11,33 @@
     "packages/cli"
   ],
   "scripts": {
-    "build": "npm run build -w @felores/kie-ai-core && npm run build -w @felores/kie-ai-openai-server && npm run build -w @felores/kie-ai-mcp-server && npm run build -w @felores/kie-cli",
-    "bundle": "npm run build -w @felores/kie-ai-core && npm run build -w @felores/kie-ai-openai-server && npm run bundle -w @felores/kie-ai-mcp-server && npm run bundle -w @felores/kie-cli",
-    "test": "npm run test -w @felores/kie-ai-core && npm run test -w @felores/kie-ai-openai-server && npm run test -w @felores/kie-ai-mcp-server && npm run test -w @felores/kie-cli && npm run pricing:refresh:test",
-    "typecheck": "npm run typecheck -w @felores/kie-ai-core && npm run typecheck -w @felores/kie-ai-openai-server && npm run typecheck -w @felores/kie-ai-mcp-server && npm run typecheck -w @felores/kie-cli",
+    "build": "npm run build -w @kie-ai-tool/core && npm run build -w @kie-ai-tool/openai-server && npm run build -w @kie-ai-tool/mcp && npm run build -w @kie-ai-tool/cli",
+    "bundle": "npm run build -w @kie-ai-tool/core && npm run build -w @kie-ai-tool/openai-server && npm run bundle -w @kie-ai-tool/mcp && npm run bundle -w @kie-ai-tool/cli",
+    "test": "npm run test -w @kie-ai-tool/core && npm run test -w @kie-ai-tool/openai-server && npm run test -w @kie-ai-tool/mcp && npm run test -w @kie-ai-tool/cli && npm run pricing:refresh:test",
+    "typecheck": "npm run typecheck -w @kie-ai-tool/core && npm run typecheck -w @kie-ai-tool/openai-server && npm run typecheck -w @kie-ai-tool/mcp && npm run typecheck -w @kie-ai-tool/cli",
     "check": "biome check .",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint .",
     "add-tool": "node scripts/add-tool.mjs",
-    "docs": "npm run build -w @felores/kie-ai-core && node scripts/gen-docs.mjs",
-    "pricing:audit": "npm run build -w @felores/kie-ai-core && node scripts/audit-pricing.mjs",
+    "docs": "npm run build -w @kie-ai-tool/core && node scripts/gen-docs.mjs",
+    "pricing:audit": "npm run build -w @kie-ai-tool/core && node scripts/audit-pricing.mjs",
     "pricing:refresh": "node scripts/refresh-pricing.mjs",
     "pricing:refresh:test": "node --test scripts/__tests__/refresh-pricing.test.mjs"
   },
-  "author": "felores",
+  "author": "Andre Tansil (https://github.com/tansilandre)",
+  "contributors": [
+    "andrewlwn77 (https://github.com/andrewlwn77)",
+    "felores (https://github.com/felores)"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/felores/kie-cli-mcp.git"
+    "url": "git+https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent.git"
   },
-  "homepage": "https://github.com/felores/kie-cli-mcp#readme",
+  "homepage": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent#readme",
   "bugs": {
-    "url": "https://github.com/felores/kie-cli-mcp/issues"
+    "url": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent/issues"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",

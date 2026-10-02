@@ -1,4 +1,4 @@
-# @felores/kie-ai-mcp-server
+# @kie-ai-tool/mcp
 
 MCP server for the [Kie.ai](https://kie.ai) APIs: image, video, music and speech
 generation across Nano Banana, Veo3, Suno, ElevenLabs, ByteDance Seedance 2.5, Qwen, Runway,
@@ -7,10 +7,12 @@ Topaz, HappyHorse and more. Exposes every model as an MCP tool to Claude Desktop
 and other MCP clients.
 
 Prefer a terminal? The same models are available as a standalone CLI:
-[`@felores/kie-cli`](https://www.npmjs.com/package/@felores/kie-cli) (binary `kie-cli`). Both surfaces
+`@kie-ai-tool/cli` (binary `kie-cli`). Both surfaces
 are generated from one shared tool registry and install independently.
 
 ## Install / configure
+
+> **Not on npm yet.** This package is part of [kie-ai-tool-mcp-skills-agent](https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent). Until it is published, build it from source as the root README explains.
 
 Add to your MCP client config (e.g. Claude Desktop `claude_desktop_config.json`):
 
@@ -18,8 +20,8 @@ Add to your MCP client config (e.g. Claude Desktop `claude_desktop_config.json`)
 {
   "mcpServers": {
     "kie-ai": {
-      "command": "npx",
-      "args": ["-y", "@felores/kie-ai-mcp-server"],
+      "command": "node",
+      "args": ["/absolute/path/to/kie-ai-tool-mcp-skills-agent/packages/mcp/dist/index.js"],
       "env": { "KIE_AI_API_KEY": "your-key" }
     }
   }
@@ -45,7 +47,7 @@ Add to your MCP client config (e.g. Claude Desktop `claude_desktop_config.json`)
 By default, MCP exposes utility tools and requires `prepare_media_generation`, host
 approval, then `submit_media_generation` for paid image, video, and audio work.
 Generation tasks can be polled with `get_task_status` and browsed with `list_tasks`. See the
-[repository](https://github.com/felores/kie-cli-mcp) for full tool docs.
+[repository](https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent) for full tool docs.
 
 `upload_file` supports validated Base64 and intentionally rejects arbitrary URL imports.
 MCP Apps hosts can render `upload_widget`; it uses one-use upload capabilities

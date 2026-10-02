@@ -14,7 +14,7 @@ test("published manifest does not depend on the private core package", async () 
   };
 
   expect(packageJson.version).toBe("0.7.0");
-  expect(packageJson.dependencies).not.toHaveProperty("@felores/kie-ai-core");
+  expect(packageJson.dependencies).not.toHaveProperty("@kie-ai-tool/core");
   expect(packageJson.bin).toEqual({
     "kie-ai-openai-server": "dist/bin.js",
   });
@@ -36,7 +36,7 @@ test("bundle is self-contained and importable without a core package import", as
     new URL("../dist/index.js", import.meta.url),
     "utf8",
   );
-  expect(bundle).not.toContain("@felores/kie-ai-core");
+  expect(bundle).not.toContain("@kie-ai-tool/core");
 
   const imported = spawnSync(
     process.execPath,

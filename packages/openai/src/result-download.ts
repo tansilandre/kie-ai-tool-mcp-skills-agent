@@ -1,8 +1,5 @@
 import { isIP } from "node:net";
-import {
-  type KieAiClient,
-  KieAiRequestError,
-} from "@felores/kie-ai-core/client";
+import { type KieAiClient, KieAiRequestError } from "@kie-ai-tool/core/client";
 import { OpenAiHttpError } from "./errors.js";
 import { KieAiResponseError, MAX_RESULT_FILE_BYTES } from "./uploads.js";
 

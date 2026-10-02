@@ -1,4 +1,4 @@
-// Publish bundle: inline @felores/kie-ai-core into a single self-contained file
+// Publish bundle: inline @kie-ai-tool/core into a single self-contained file
 // so the published package never depends on the unpublished core workspace.
 // Third-party runtime deps stay external (declared in package.json); sqlite3 is
 // a native module and MUST stay external.
@@ -19,9 +19,9 @@ await build({
 });
 
 // Guard: the published artifact must never reference the unpublished core.
-if (readFileSync(OUT, "utf8").includes("@felores/kie-ai-core")) {
+if (readFileSync(OUT, "utf8").includes("@kie-ai-tool/core")) {
   console.error(
-    `FATAL: ${OUT} still references @felores/kie-ai-core; core was not inlined.`,
+    `FATAL: ${OUT} still references @kie-ai-tool/core; core was not inlined.`,
   );
   process.exit(1);
 }

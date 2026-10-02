@@ -1,5 +1,5 @@
 {
-  "name": "@felores/kie-cli",
+  "name": "@kie-ai-tool/cli",
   "version": "0.9.0",
   "description": "Standalone CLI for Kie.ai APIs: generate images, video, music and speech from the terminal. Same models as the Kie.ai MCP server, no MCP client required.",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "dev": "tsx src/index.ts",
-    "prepack": "npm run build -w @felores/kie-ai-core && npm run bundle"
+    "prepack": "npm run build -w @kie-ai-tool/core && npm run bundle"
   },
   "keywords": [
     "kie.ai",
@@ -26,15 +26,19 @@
     "nano-banana",
     "veo3"
   ],
-  "author": "felores",
+  "author": "Andre Tansil (https://github.com/tansilandre)",
+  "contributors": [
+    "andrewlwn77 (https://github.com/andrewlwn77)",
+    "felores (https://github.com/felores)"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/felores/kie-cli-mcp.git"
+    "url": "git+https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent.git"
   },
-  "homepage": "https://github.com/felores/kie-cli-mcp#readme",
+  "homepage": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent#readme",
   "bugs": {
-    "url": "https://github.com/felores/kie-cli-mcp/issues"
+    "url": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent/issues"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
@@ -46,7 +50,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@felores/kie-ai-core": "*",
+    "@kie-ai-tool/core": "*",
     "@types/jest": "^29.5.8",
     "@types/node": "^20.10.0",
     "@types/yargs": "^17.0.33",

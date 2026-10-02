@@ -1,4 +1,4 @@
-# @felores/kie-ai-openai-server
+# @kie-ai-tool/openai-server
 
 OpenAI-compatible HTTP transport for selected Kie.ai image and video models.
 
@@ -7,7 +7,7 @@ OpenAI-compatible HTTP transport for selected Kie.ai image and video models.
 The embedded router owns provider request validation and response normalization. Its host application must authenticate callers before mounting it.
 
 ```ts
-import { createKieOpenAiRouter } from "@felores/kie-ai-openai-server";
+import { createKieOpenAiRouter } from "@kie-ai-tool/openai-server";
 
 app.use(
   "/kie",

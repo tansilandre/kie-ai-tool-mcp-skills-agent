@@ -1,4 +1,4 @@
-# Streamable HTTP transport image for @felores/kie-ai-mcp-server.
+# Streamable HTTP transport image for @kie-ai-tool/mcp.
 # Build context MUST be the monorepo root (it needs packages/core + workspaces):
 #   docker build -f packages/mcp/Dockerfile -t kie-ai-mcp-http .
 FROM node:20-alpine AS build
@@ -11,8 +11,8 @@ COPY packages packages
 RUN npm ci
 
 # Build core, then esbuild-bundle the MCP server into a self-contained dist/.
-RUN npm run build -w @felores/kie-ai-core \
-  && npm run bundle -w @felores/kie-ai-mcp-server
+RUN npm run build -w @kie-ai-tool/core \
+  && npm run bundle -w @kie-ai-tool/mcp
 
 # --- runtime image -------------------------------------------------------
 FROM node:20-alpine AS runtime

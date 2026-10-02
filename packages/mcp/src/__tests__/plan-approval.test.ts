@@ -1,5 +1,5 @@
-import type { PreparedGenerationPlan } from "@felores/kie-ai-core";
 import { describe, expect, jest, test } from "@jest/globals";
+import type { PreparedGenerationPlan } from "@kie-ai-tool/core";
 import type { Server, ServerContext } from "@modelcontextprotocol/server";
 import {
   approvalInputRequired,

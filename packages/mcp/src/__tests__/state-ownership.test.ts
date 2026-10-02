@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ToolContext } from "@felores/kie-ai-core";
 import { afterEach, describe, expect, test } from "@jest/globals";
+import type { ToolContext } from "@kie-ai-tool/core";
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport, Server } from "@modelcontextprotocol/server";
 import { createHttpApp } from "../http-transport.js";

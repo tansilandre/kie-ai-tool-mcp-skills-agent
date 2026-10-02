@@ -1,4 +1,4 @@
-// Public surface of @felores/kie-ai-core.
+// Public surface of @kie-ai-tool/core.
 // Both the MCP server and the CLI consume this single module so that tools,
 // schemas, the API client and the task database have one source of truth.
 // TaskDatabase lives behind the "./database" subpath so the OpenAI transport
