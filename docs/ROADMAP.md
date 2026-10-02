@@ -57,7 +57,9 @@ cheapest settings only (gpt-image-2 at 1K, Veo 3.1 Lite at 720p), as Andre allow
    marketplace (`/plugin marketplace add tansilandre/kie-ai-tool-mcp-skills-agent`), with a core
    `kie` skill and a `kie-director` agent. Live test: one gpt-image-2 1K image through the
    installed plugin.
-4. **Spend controls that work in every app.** Approval modes: `form` (MCP form, the default),
+4. ✅ **Spend controls that work in every app.** (PR #5; design in
+   [`docs/design/spend-controls.md`](design/spend-controls.md). Not built: refusing on a low
+   balance, see the design.) Approval modes: `form` (MCP form, the default),
    `chat` (the agent must relay the human's yes, for apps without forms) and `auto` (approve
    anything under a credit limit the human set). Per-plan and per-day credit caps enforced in code
    for every mode. Prices from kie.ai's catalog, the real cost read back from each finished task,

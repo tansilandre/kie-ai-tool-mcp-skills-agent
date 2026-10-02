@@ -18,7 +18,8 @@ in [`docs/ROADMAP.md`](docs/ROADMAP.md); read it before starting a feature.
    schema, price, success rate, balance, task status) are fine. When a live test is approved, use
    the cheapest model at the lowest resolution (for example gpt-image-2 at 1K, Veo 3.1 Lite at
    720p) and report the credits it actually cost.
-3. **Every paid generation path goes through prepare → approve → submit.** Do not add a code path
+3. **Every paid generation path goes through prepare → approve → submit, inside the credit
+   caps** (`docs/design/spend-controls.md`). Do not add a code path
    that spends credits without a plan, and do not weaken the approval or credit caps to make a
    test pass.
 4. **Work on a branch and land it through a pull request** with green CI (see "Landing the plane").

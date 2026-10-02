@@ -27,9 +27,11 @@ export function oneLine(text: string, max = 2000): string {
 }
 
 function priceSummary(plan: PreparedGenerationPlan): string {
-  return plan.total.status === "exact"
-    ? `${plan.total.credits} credits total (verified exact quote)`
-    : "total price unknown because one or more request dimensions lack a verified formula";
+  if (plan.total.status === "exact")
+    return `${plan.total.credits} credits total (verified exact quote)`;
+  if (plan.total.status === "estimated")
+    return `up to ${plan.total.credits} credits total (estimate from kie.ai's price list; the real charge is usually lower)`;
+  return "total price UNKNOWN for at least one item; approving accepts that";
 }
 
 export function formatPlanApprovalMessage(
@@ -42,9 +44,11 @@ export function formatPlanApprovalMessage(
       const price =
         item.price.status === "exact"
           ? `${item.price.credits} credits`
-          : item.price.note
-            ? `no exact quote; kie.ai's full price text: ${oneLine(item.price.note)}`
-            : "price unknown";
+          : item.price.status === "estimated"
+            ? `up to ${item.price.credits} credits (${oneLine(item.price.basis ?? "estimate", 200)}); kie.ai's full price text: ${oneLine(item.price.note ?? "")}`
+            : item.price.note
+              ? `no exact quote; kie.ai's full price text: ${oneLine(item.price.note)}`
+              : "price unknown";
       return [
         oneLine(
           `${item.index + 1}. ${item.tool}: ${item.model}, ${item.mode}, ${item.outputCount} output(s), ${price}`,

@@ -42,6 +42,12 @@ describe("CLI spend gate", () => {
     expect(body.error).toContain("prepare_media_generation");
   });
 
+  test("the hand-tuned model commands are gated the same way", () => {
+    const result = run(["gpt_image_2", "--prompt", "a leaf", "--json"]);
+    expect(result.status).toBe(1);
+    expect(JSON.parse(result.stdout).error).toContain("runs through a plan");
+  });
+
   test("run_model is not gated when the operator opts into direct generation", () => {
     const result = run(
       [

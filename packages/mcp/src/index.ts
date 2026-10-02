@@ -11,6 +11,7 @@ import {
   type KieAiConfig,
   KieCatalog,
   MISSING_API_KEY_MESSAGE,
+  spendPolicyOrError,
   TOOL_REGISTRY,
   type ToolContext,
   ToolResult,
@@ -56,6 +57,15 @@ import { isMcpToolCallable } from "./tool-access.js";
 import { TemporaryUploadStore } from "./upload-storage.js";
 import { UPLOAD_WIDGET_HTML, UPLOAD_WIDGET_MIME } from "./upload-widget.js";
 import { WidgetGrantService } from "./widget-grants.js";
+
+function spendSettings(): Pick<
+  ToolContext,
+  "spendPolicy" | "spendPolicyError"
+> {
+  const { policy, error } = spendPolicyOrError();
+  if (error) console.error(`[Kie.ai MCP] ${error}`);
+  return policy ? { spendPolicy: policy } : { spendPolicyError: error };
+}
 
 export class KieAiMcpServer {
   private server: Server;
@@ -143,6 +153,7 @@ export class KieAiMcpServer {
       client: this.client,
       db: this.db,
       catalog: new KieCatalog(this.client),
+      ...spendSettings(),
       getCallbackUrl: (url) => this.getCallbackUrl(url),
       formatError: formatToolError,
       // Plan utilities must resolve through the server's enabled-tool boundary,

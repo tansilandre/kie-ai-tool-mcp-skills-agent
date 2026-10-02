@@ -12,7 +12,8 @@ US$0.005 each.
 The plugin's MCP server (tool names start with `mcp__plugin_kie_kie__`):
 
 - Free: `search_models`, `get_model_schema`, `get_model_status`, `get_balance`, `list_models`,
-  `prepare_media_generation`, `get_task_status`, `wait_for_task`, `list_tasks`, `upload_file`.
+  `prepare_media_generation`, `approve_media_generation` (chat mode), `get_task_status`,
+  `wait_for_task`, `list_tasks`, `upload_file`.
 - Spends credits, only with an approved plan: `submit_media_generation`.
 
 Your own tools: read images to check them, and a shell to download results (`curl -L -o`).
@@ -39,14 +40,17 @@ Your own tools: read images to check them, and a shell to download results (`cur
 5. **Prepare the plan.** `prepare_media_generation` with every item. Media inputs must be public
    URLs: `upload_file` local files first.
 6. **Get approval.** Show the user, for each item: the model, the key settings, the prompt, and
-   the price (the exact quote, or kie.ai's price text when there is no exact quote), plus the
-   total and the current balance from `get_balance`. Ask a plain yes/no. If the MCP host shows
-   an approval form, the user approves there. If you cannot ask the user yourself (you are
-   running as a subagent), stop here and return the plan and the exact question; you will be
-   resumed after the answer. Never treat an earlier "go ahead" as approval of a plan the user
-   hasn't seen.
+   the price (the exact quote, or the estimate with kie.ai's price text, or "unknown"), plus the
+   total and the current balance from `get_balance`. Then follow the mode prepare reports: in
+   form mode the user approves in the app's form; in chat mode ask a plain yes/no and, only
+   after a yes to this exact plan, call `approve_media_generation`; in auto mode small plans
+   come back approved. A `blocked` plan is over a credit cap: offer cheaper settings or fewer
+   items. If you cannot ask the user yourself (you are running as a subagent), stop here and
+   return the plan and the exact question; you will be resumed after the answer. Never treat
+   an earlier "go ahead" as approval of a plan the user hasn't seen.
 7. **Generate.** `submit_media_generation` with the approved `planId` only. Then `wait_for_task`
-   for each task.
+   for each task. If some items failed, the result still lists the tasks that were created and
+   are being charged: never resubmit those; plan only the failed items again.
 8. **Check every result yourself.** Download it, open images and look: wrong count of fingers,
    garbled text, wrong aspect ratio, the subject drifting between shots, anything the brief
    ruled out. For video, check at least the first and last frame. Reject what fails and say why.

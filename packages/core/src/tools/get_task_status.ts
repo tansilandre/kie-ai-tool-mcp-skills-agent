@@ -270,6 +270,15 @@ export const getTaskStatusTool: ToolDef<typeof GetTaskStatusSchema> = {
             error_message: errorMessage,
             credits_consumed: creditsConsumed,
           });
+          // The real charge replaces the estimate in the daily budget, but
+          // only once the task has ended: a value reported mid-run (or 0)
+          // must not erase a reservation.
+          if (
+            typeof creditsConsumed === "number" &&
+            (status === "completed" || status === "failed")
+          ) {
+            ctx.db.recordActualCredits(task_id, creditsConsumed);
+          }
         }
       } catch (error) {
         // API call failed, use local data if available

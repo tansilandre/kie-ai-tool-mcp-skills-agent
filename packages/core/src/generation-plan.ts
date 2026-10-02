@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import type { z } from "zod";
 import { getCatalogEntry } from "./model-catalog.js";
+import { estimateFromPriceText } from "./pricing/estimate.js";
 import { type PriceState, priceRequest } from "./pricing/rate-card.js";
 import type { ToolDef } from "./tools/types.js";
 
@@ -25,7 +26,8 @@ export interface PreparedGenerationPlan {
   defaultProfile: "safe";
   maxConcurrency: number;
   items: PreparedPlanItem[];
-  total: { credits?: number; status: "exact" | "unknown" };
+  /** Exact when every item is exact; estimated (an upper bound) when every item has a number. */
+  total: { credits?: number; status: "exact" | "estimated" | "unknown" };
   requestHash: string;
 }
 
@@ -195,7 +197,7 @@ function resolveModel(tool: string, parsed: Record<string, unknown>): string {
 }
 
 // Output-count fields that catalog models use inside `input`.
-const CATALOG_COUNT_FIELDS = [
+export const CATALOG_COUNT_FIELDS = [
   "n",
   "num_images",
   "num_outputs",
@@ -204,6 +206,20 @@ const CATALOG_COUNT_FIELDS = [
   "batch_size",
   "count",
 ];
+
+/**
+ * For catalog models: the highest value of any output-count field, numbers
+ * or numeric strings. Taking the first match would let `{max_images: 6,
+ * n: 1}` be priced as one image.
+ */
+function highestCount(input: Record<string, unknown>): number {
+  let highest = 1;
+  for (const key of CATALOG_COUNT_FIELDS) {
+    const count = Number(input[key]);
+    if (Number.isFinite(count) && count > highest) highest = Math.ceil(count);
+  }
+  return highest;
+}
 
 function resolveOutputCount(
   args: Record<string, unknown>,
@@ -235,6 +251,10 @@ export interface PlanItemDetails {
   mode?: string;
   /** kie.ai's own price text, shown to the approver when no exact formula exists. */
   priceNote?: string;
+  /** Request facts the price text depends on, for an upper-bound estimate. */
+  priceInputs?: { resolution?: string; durationSeconds?: number };
+  /** The schema's default output count, used when the request names none. */
+  defaultOutputCount?: number;
   warnings?: string[];
 }
 
@@ -258,7 +278,9 @@ export function prepareGenerationPlan(
     const tool = tools.get(requested.tool);
     const catalog = getCatalogEntry(requested.tool);
     if (!tool || !catalog)
-      throw new Error(`Unsupported generation tool: ${requested.tool}`);
+      throw new Error(
+        `"${requested.tool}" is not a generation tool here. For a kie.ai catalog model use { "tool": "run_model", "args": { "model": "${requested.tool}", "input": { ... } } } (fields from get_model_schema); list_models lists the hand-tuned tools.`,
+      );
     const profileDefaults = catalog.defaultProfile
       ? (POLICY_DEFAULTS[catalog.defaultProfile] ?? {})
       : {};
@@ -291,9 +313,9 @@ export function prepareGenerationPlan(
     const mode = details?.mode ?? resolveGenerationMode(requested.tool, parsed);
     const outputCount =
       requested.tool === "run_model"
-        ? resolveOutputCount(
-            (parsed.input ?? {}) as Record<string, unknown>,
-            CATALOG_COUNT_FIELDS,
+        ? Math.max(
+            highestCount((parsed.input ?? {}) as Record<string, unknown>),
+            details?.defaultOutputCount ?? 1,
           )
         : resolveOutputCount(parsed);
     const quoted = priceRequest(
@@ -302,10 +324,23 @@ export function prepareGenerationPlan(
       model,
       mode,
     );
-    const price =
-      details?.priceNote && quoted.status !== "exact"
-        ? { ...quoted, note: details.priceNote }
-        : quoted;
+    let price = quoted;
+    if (details?.priceNote && quoted.status !== "exact") {
+      const estimate = estimateFromPriceText(details.priceNote, {
+        ...details.priceInputs,
+        outputCount,
+      });
+      price =
+        estimate.status === "estimated"
+          ? {
+              ...quoted,
+              status: "estimated",
+              credits: estimate.credits,
+              basis: estimate.basis,
+              note: details.priceNote,
+            }
+          : { ...quoted, basis: estimate.basis, note: details.priceNote };
+    }
     return {
       index,
       tool: requested.tool,
@@ -320,8 +355,15 @@ export function prepareGenerationPlan(
     };
   });
   const exact = items.every((item) => item.price.status === "exact");
-  const totalCredits = exact
-    ? items.reduce((sum, item) => sum + (item.price.credits ?? 0), 0)
+  const numbered = items.every(
+    (item) =>
+      (item.price.status === "exact" || item.price.status === "estimated") &&
+      typeof item.price.credits === "number",
+  );
+  const totalCredits = numbered
+    ? Math.ceil(
+        items.reduce((sum, item) => sum + (item.price.credits ?? 0), 0) * 100,
+      ) / 100
     : undefined;
   const payload = {
     createdAt,
@@ -331,7 +373,9 @@ export function prepareGenerationPlan(
     items,
     total: exact
       ? { credits: totalCredits, status: "exact" as const }
-      : { status: "unknown" as const },
+      : numbered
+        ? { credits: totalCredits, status: "estimated" as const }
+        : { status: "unknown" as const },
   };
   return {
     id: randomUUID(),

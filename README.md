@@ -22,7 +22,8 @@ price, wait for your yes, generate, and hand back the files.
 | `get_model_schema` | free | A model's input fields, required ones, allowed values, defaults and an example |
 | `get_model_status` | free | kie.ai's price text and the model's success rate over the last hour and day |
 | `get_balance` | free | Credits left on your key |
-| `prepare_media_generation` | free | Checks a request against the model's live schema, shows the price, saves a plan |
+| `prepare_media_generation` | free | Checks a request against the model's live schema, prices it, saves a plan |
+| `approve_media_generation` | free | Chat approval mode: records your yes to a plan |
 | `submit_media_generation` | spends | Runs an approved plan once |
 | `run_model` | spends | Any catalog model, inside a plan |
 | `gpt_image_2`, `kling_video`, … | spend | 28 hand-tuned model tools with safe defaults, inside a plan |
@@ -54,8 +55,10 @@ In Claude Code:
 /plugin install kie@kie-ai-tool
 ```
 
-Claude Code asks for your kie.ai API key and keeps it in your system's secure storage. You can
-change it later with `/plugin configure kie@kie-ai-tool`. If you leave it empty, the plugin uses
+Claude Code asks for your kie.ai API key and keeps it in your system's secure storage, and lets
+you pick the approval mode and the credit caps. Change them later with
+`/plugin configure kie@kie-ai-tool`. In the plugin these settings come from there, not from your
+shell (only the key falls back to `KIE_API_KEY`). If you leave it empty, the plugin uses
 `KIE_API_KEY` from the shell that started Claude Code.
 
 Then ask in plain words, for example *"make a 1:1 product photo of a white ceramic mug with GPT
@@ -89,7 +92,10 @@ Then point the client at the bundled server, using the absolute path to your clo
 }
 ```
 
-For Codex: `codex mcp add kie --env KIE_API_KEY=your-key -- node /absolute/path/to/kie-ai-tool-mcp-skills-agent/bundle/kie-mcp.mjs`.
+For Codex: `codex mcp add kie --env KIE_API_KEY=your-key --env KIE_AI_APPROVAL=chat -- node /absolute/path/to/kie-ai-tool-mcp-skills-agent/bundle/kie-mcp.mjs`.
+
+Apps without MCP approval forms need `"KIE_AI_APPROVAL": "chat"` in `env`; otherwise plans can be
+prepared but not approved.
 
 ### CLI
 
@@ -103,18 +109,43 @@ node bundle/kie-cli.mjs get_balance
 
 ## How spending works
 
-Every paid generation goes through three steps, so an agent cannot spend your credits without you
-seeing the plan first:
+Credits are real money (1 credit is about US$0.005), so every paid generation goes through a plan:
 
-1. `prepare_media_generation` checks the request, fills in cheap defaults you didn't set, shows the
-   price when it is known, and saves a plan. Nothing is sent to kie.ai yet.
-2. You approve the plan. In an MCP client that supports forms, the server asks you in a form. In the
-   CLI you pass `--approve <planId>`.
-3. `submit_media_generation` runs the approved plan once.
+1. **Prepare.** `prepare_media_generation` checks the request (against the model's live schema for
+   `run_model`), fills in cheap defaults you didn't set, and prices it: an exact quote where one
+   is known, otherwise an upper-bound estimate from kie.ai's own price list. Nothing is sent to
+   kie.ai yet.
+2. **Approve.** Who says yes depends on `KIE_AI_APPROVAL`, which only the person who starts the
+   server or CLI can set:
 
-The MCP server hides the direct generation tools unless its operator sets
-`KIE_AI_ALLOW_DIRECT_GENERATION=true`. The roadmap adds credit caps enforced in code and an approval
-path for MCP clients that don't support forms.
+   | Mode | Who approves | Use it for |
+   |---|---|---|
+   | `form` (default) | You, in the app's approval dialog. In the CLI you type a code it shows you in your terminal | Claude Code, apps that show MCP forms, the CLI used by a person |
+   | `chat` | You, in chat: the agent shows the plan, you say yes, it calls `approve_media_generation` | Cursor, Codex, WorkBuddy and other apps without approval forms |
+   | `auto` | Nobody, for plans up to `KIE_AI_AUTO_APPROVE_CREDITS` | Unattended pipelines |
+
+3. **Submit.** `submit_media_generation` runs an approved plan once and returns every task it
+   created, even when one item fails, so nothing gets paid for twice.
+
+**Caps hold in every mode**, enforced in code: no plan above `KIE_AI_MAX_CREDITS_PER_PLAN`
+(default 150 credits), and no more than `KIE_AI_MAX_CREDITS_PER_DAY` (default 600) in any 24 hours,
+counting what kie.ai actually charged where it reports it. A plan with an unknown price needs a
+person to accept that explicitly, and auto mode never approves one.
+
+What these controls can and can't do:
+
+- They stop accidents and keep an honest agent inside your limits. They don't stop a determined
+  agent: in `chat` mode it relays your answer, and an agent with a shell can change the CLI's
+  environment or call kie.ai with your key directly. For agents, the hard limit is a kie.ai API key
+  with its own credit limit.
+- An item with an unknown price counts as a full plan (`KIE_AI_MAX_CREDITS_PER_PLAN`) until kie.ai
+  reports its real charge, which can be higher. Estimates are upper bounds; when kie.ai prices a
+  model by characters, tokens, megapixels or input media, the estimate is "unknown" instead.
+- An item that returns no task id (rejected, or timed out) keeps its estimate booked for 24 hours,
+  since a timeout can hide a task kie.ai did create.
+- The ledger lives in the local task database, so separate machines or databases don't share it.
+- The OpenAI-compatible server in `packages/openai` is outside these controls.
+- `KIE_AI_ALLOW_DIRECT_GENERATION=true` turns plans off entirely; leave it off.
 
 ## Configuration
 
@@ -125,6 +156,10 @@ path for MCP clients that don't support forms.
 | `KIE_AI_ENABLED_TOOLS` | no | Comma-separated tool names to load, to keep the agent's context small |
 | `KIE_AI_TOOL_CATEGORIES` | no | Load whole categories: `image`, `video`, `audio`, `catalog` (`run_model`), `utility` |
 | `KIE_AI_DISABLED_TOOLS` | no | Tools to hide. Disabling a model tool such as `veo3_generate_video` does not stop the same model through `run_model`; disable `run_model` too |
+| `KIE_AI_APPROVAL` | no | `form` (default), `chat` or `auto`. See "How spending works" |
+| `KIE_AI_MAX_CREDITS_PER_PLAN` | no | Cap per plan, default 150 credits |
+| `KIE_AI_MAX_CREDITS_PER_DAY` | no | Cap per 24 hours, default 600 credits |
+| `KIE_AI_AUTO_APPROVE_CREDITS` | no | Auto mode: largest plan approved without asking, default 0 |
 | `KIE_AI_ALLOW_DIRECT_GENERATION` | no | `true` lets every paid tool, including `run_model` with any catalog model, run without a plan. Leave it off |
 | `KIE_AI_DB_PATH` | no | Where tasks and plans are stored (default `~/.kie-ai/tasks.db`) |
 | `KIE_AI_CALLBACK_URL` | no | Your own webhook for task completion |

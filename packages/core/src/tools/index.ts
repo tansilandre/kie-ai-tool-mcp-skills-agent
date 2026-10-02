@@ -1,3 +1,4 @@
+import { approveMediaGenerationTool } from "./approve_media_generation.js";
 import { bytedanceSeedanceVideoTool } from "./bytedance_seedance_video.js";
 import { bytedanceSeedreamImageTool } from "./bytedance_seedream_image.js";
 import { elevenlabsTtsTool } from "./elevenlabs_tts.js";
@@ -51,6 +52,7 @@ export * from "./types.js";
  * automatically appears in both surfaces.
  */
 export const TOOL_REGISTRY: ToolDef[] = [
+  approveMediaGenerationTool,
   bytedanceSeedanceVideoTool,
   bytedanceSeedreamImageTool,
   elevenlabsTtsTool,

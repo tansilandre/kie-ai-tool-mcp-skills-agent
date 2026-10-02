@@ -123,6 +123,25 @@ export class TaskDatabase {
       `CREATE INDEX IF NOT EXISTS idx_generation_plans_status ON generation_plans(status)`,
     );
     addColumnIfMissing(this.db, "generation_plans", "approval_context", "TEXT");
+    // What each submitted plan item may cost (its estimate) and what kie.ai
+    // actually charged once known. The daily cap reads this.
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS spend_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id TEXT NOT NULL,
+        item_index INTEGER NOT NULL,
+        task_id TEXT,
+        estimated REAL,
+        actual REAL,
+        created_at TEXT NOT NULL
+      )
+    `);
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_spend_ledger_created ON spend_ledger(created_at)`,
+    );
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_spend_ledger_task ON spend_ledger(task_id)`,
+    );
   }
 
   async createTask(
@@ -276,6 +295,109 @@ export class TaskDatabase {
       )
       .run(planId, requestHash, approvalContext, new Date().toISOString());
     return Number(result.changes) === 1;
+  }
+
+  /**
+   * Credits spent since `sinceIso`: what kie.ai charged where known, else the
+   * estimate, else `unknownPlaceholder` (an item approved with an unknown
+   * price counts as a full plan until its real charge arrives).
+   */
+  spentSince(sinceIso: string, unknownPlaceholder: number): number {
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(COALESCE(actual, estimated, ?)), 0) AS spent
+         FROM spend_ledger WHERE created_at > ?`,
+      )
+      .get(unknownPlaceholder, sinceIso) as { spent: number };
+    return Math.ceil(Number(row.spent) * 100) / 100;
+  }
+
+  /**
+   * Claims an approved plan only if the daily budget still has room, and
+   * reserves its estimate in the ledger, in one write transaction. Two plans
+   * racing for the last of the budget (in one process or several) can't both
+   * pass: BEGIN IMMEDIATE takes the write lock before the budget is read.
+   */
+  claimGenerationPlanWithinBudget(
+    planId: string,
+    requestHash: string,
+    approvalContext: string,
+    budget: {
+      itemEstimates: Array<number | undefined>;
+      maxPerDay: number;
+      unknownPlaceholder: number;
+      nowIso?: string;
+    },
+  ): { claimed: boolean; spentLast24h: number; reason?: string } {
+    const now = budget.nowIso ?? new Date().toISOString();
+    const since = new Date(Date.parse(now) - 24 * 60 * 60 * 1000).toISOString();
+    const planCost = budget.itemEstimates.reduce<number>(
+      (sum, value) => sum + (value ?? budget.unknownPlaceholder),
+      0,
+    );
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const spent = this.spentSince(since, budget.unknownPlaceholder);
+      if (spent + planCost > budget.maxPerDay) {
+        this.db.exec("ROLLBACK");
+        return {
+          claimed: false,
+          spentLast24h: spent,
+          reason: `The daily cap would be passed: ${spent} credits spent in the last 24 hours plus up to ${planCost} for this plan is over ${budget.maxPerDay} (KIE_AI_MAX_CREDITS_PER_DAY).`,
+        };
+      }
+      const claim = this.db
+        .prepare(
+          `UPDATE generation_plans
+           SET status = 'submitting', submitted_at = CURRENT_TIMESTAMP
+            WHERE plan_id = ? AND request_hash = ? AND approval_context = ? AND status = 'approved' AND expires_at > ?`,
+        )
+        .run(planId, requestHash, approvalContext, now);
+      if (Number(claim.changes) !== 1) {
+        this.db.exec("ROLLBACK");
+        return { claimed: false, spentLast24h: spent };
+      }
+      const reserve = this.db.prepare(
+        `INSERT INTO spend_ledger (plan_id, item_index, estimated, created_at) VALUES (?, ?, ?, ?)`,
+      );
+      budget.itemEstimates.forEach((estimate, index) => {
+        reserve.run(planId, index, estimate ?? null, now);
+      });
+      this.db.exec("COMMIT");
+      return { claimed: true, spentLast24h: spent };
+    } catch (error) {
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        // Already rolled back.
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * After submission: link each reserved item to its task so the real charge
+   * can replace the estimate later. Items without a task id keep their
+   * reservation: a timeout can hide a task kie.ai did create, so releasing it
+   * would let the daily cap undercount. It ages out after 24 hours.
+   */
+  settlePlanSpend(
+    planId: string,
+    results: Array<{ index: number; taskId?: string }>,
+  ): void {
+    const link = this.db.prepare(
+      `UPDATE spend_ledger SET task_id = ? WHERE plan_id = ? AND item_index = ?`,
+    );
+    for (const result of results) {
+      if (result.taskId) link.run(result.taskId, planId, result.index);
+    }
+  }
+
+  /** Records what kie.ai actually charged for a task, when it reports it. */
+  recordActualCredits(taskId: string, credits: number): void {
+    this.db
+      .prepare(`UPDATE spend_ledger SET actual = ? WHERE task_id = ?`)
+      .run(credits, taskId);
   }
 
   async finishGenerationPlan(planId: string, results: unknown): Promise<void> {

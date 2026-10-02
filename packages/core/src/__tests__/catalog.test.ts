@@ -434,7 +434,9 @@ describe("run_model and plans", () => {
       model: "gpt-image-2-text-to-image",
       mode: "kie.ai lists: text to image",
     });
-    expect(item.price.status).toBe("unknown");
+    // The estimate from kie.ai's price text equals the live charge
+    // (gpt-image-2, 1K: 6 credits, 2026-10-02).
+    expect(item.price).toMatchObject({ status: "estimated", credits: 6 });
     expect(item.price.note).toContain("6 credits");
     expect(item.warnings[0]).toContain("aspectRatio");
     expect(createMarketTask).not.toHaveBeenCalled();

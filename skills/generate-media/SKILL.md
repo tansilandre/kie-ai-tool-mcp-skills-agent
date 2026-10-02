@@ -41,32 +41,52 @@ safeguards. Do not request that bypass for a user-requested generation.
    reference inputs, price state (and kie.ai's price text when there is no exact quote),
    and any warnings, such as a field the model's schema doesn't list. Do not present USD unless the user configured an
    account-specific conversion outside this skill.
-4. For MCP, the server asks the host to confirm the resolved plan in a form. The MCP
-   client must advertise the `elicitation.form` capability and handle the request. Only
-   an accepted form with `confirm: true` changes the persisted plan to `approved`. Do
-   not interpret an earlier request to generate as approval of an unseen plan. If the
-   host declines, cancels, does not confirm, or lacks form elicitation, do not submit
-   the prepared plan.
-5. After host approval only, call `submit_media_generation` with the returned `planId`.
-   Do not supply replacement request arguments or caller-controlled approval fields.
-   A plan expires, its hash detects accidental mutation only, and it can be submitted
-    only once. An MCP plan is bound to the server context that prepared and approved
-    it, so another HTTP session cannot submit it. Submission creates at most four
-    provider tasks concurrently.
-6. Use `wait_for_task` or `get_task_status` for each returned task ID. Keep actual
-   `creditsConsumed`, when Kie returns it, separate from the preflight quote.
+4. Get approval. The `status` and `next_step` that prepare returns say which mode the
+   server is in (the person who runs it chooses; you can't change it):
+   - **Form mode (default):** the app shows the person an approval form. Only an accepted
+     form changes the plan to `approved`. If they decline, or the app can't show forms, the
+     plan stays `prepared`: tell them how to approve it (in a terminal with the CLI, or by
+     setting `KIE_AI_APPROVAL=chat`), and do not submit.
+   - **Chat mode:** show the person every item with its price and the total, and ask a plain
+     yes or no. Only after they say yes to this exact plan, call `approve_media_generation`
+     with the `planId` (add `acceptUnknownPrice: true` only if you told them a price is
+     unknown). Never approve on their behalf, and never reuse an earlier yes.
+   - **Auto mode:** plans within the auto-approve limit come back `approved` already; others
+     need a person as above.
+   - **Blocked:** a plan over a credit cap comes back `status: "blocked"` with the reason and
+     is not saved. Offer cheaper settings or fewer items; only the person who runs the server
+     can raise a cap.
+   Never treat an earlier request to generate as approval of a plan the person hasn't seen.
+5. After approval only, call `submit_media_generation` with the `planId`. Do not supply
+   replacement request arguments. A plan expires, its hash detects changes, and it can be
+   submitted only once; submit checks the caps again. If some items fail, the result still
+   lists the tasks that were created and are being charged: wait for those, and plan only the
+   failed items again. Never resubmit work that already has a task ID.
+6. Use `wait_for_task` (or `get_task_status`) for each task ID. Report `creditsConsumed`, the
+   real charge, next to the plan's quote or estimate.
 
-CLI uses the same tools. For example:
+The CLI uses the same tools. In a terminal, submit shows the plan and asks the person to type a
+code; an agent's shell has no terminal, so in form mode an agent can't approve through the CLI:
 
 ```bash
 # Prepare only. This creates no provider tasks.
-kie-cli prepare_media_generation \
-  --items '[{"tool":"nano_banana_image","args":{"prompt":"A red panda coding"}}]' \
-  --json
+node bundle/kie-cli.mjs prepare_media_generation \
+  --items '[{"tool":"nano_banana_image","args":{"prompt":"A red panda coding"}}]' --json
 
-# This explicit matching value atomically records CLI approval before submission.
-kie-cli submit_media_generation --planId <plan-id> --approve <plan-id> --json
+# A person, in their own terminal: shows the plan and asks for a code.
+node bundle/kie-cli.mjs submit_media_generation --planId <plan-id>
+
+# Chat mode only, after the person said yes in chat:
+node bundle/kie-cli.mjs submit_media_generation --planId <plan-id> --approve <plan-id> --json
 ```
+
+## Prices and caps
+
+- `exact`: a verified rate-card formula. `estimated`: an upper bound from kie.ai's price text
+  for the requested resolution and duration (the real charge is usually lower; when kie.ai lists
+  several modes the request can't choose, it is the dearest). `unknown`: say so plainly.
+- Caps, set by the person who runs the server: `KIE_AI_MAX_CREDITS_PER_PLAN` (default 150) and
+  `KIE_AI_MAX_CREDITS_PER_DAY` (default 600, counting real charges where known).
 
 ## Safe policy defaults
 

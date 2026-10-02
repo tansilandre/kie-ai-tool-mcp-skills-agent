@@ -2368,6 +2368,24 @@ export type GetModelStatusRequest = z.infer<typeof GetModelStatusSchema>;
 export const GetBalanceSchema = z.object({});
 export type GetBalanceRequest = z.infer<typeof GetBalanceSchema>;
 
+export const ApproveMediaGenerationSchema = z.object({
+  planId: z
+    .string()
+    .uuid()
+    .describe(
+      "The planId from prepare_media_generation that the person said yes to",
+    ),
+  acceptUnknownPrice: z
+    .boolean()
+    .optional()
+    .describe(
+      "Set only when the plan has an item with an unknown price and the person was told so before saying yes",
+    ),
+});
+export type ApproveMediaGenerationRequest = z.infer<
+  typeof ApproveMediaGenerationSchema
+>;
+
 export const RunModelSchema = z.object({
   model: CatalogModelIdSchema,
   input: z

@@ -13,6 +13,9 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// packages/cli/src/index.ts
+import { createInterface } from "node:readline/promises";
+
 // packages/core/dist/catalog.js
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -1666,6 +1669,19 @@ var TaskDatabase = class {
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_status ON tasks(status)`);
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_generation_plans_status ON generation_plans(status)`);
     addColumnIfMissing(this.db, "generation_plans", "approval_context", "TEXT");
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS spend_ledger (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id TEXT NOT NULL,
+        item_index INTEGER NOT NULL,
+        task_id TEXT,
+        estimated REAL,
+        actual REAL,
+        created_at TEXT NOT NULL
+      )
+    `);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_spend_ledger_created ON spend_ledger(created_at)`);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_spend_ledger_task ON spend_ledger(task_id)`);
   }
   async createTask(taskData) {
     this.db.prepare(`INSERT INTO tasks (task_id, api_type, status, result_url, error_message, credits_consumed)
@@ -1734,6 +1750,75 @@ var TaskDatabase = class {
           WHERE plan_id = ? AND request_hash = ? AND approval_context = ? AND status = 'approved' AND expires_at > ?`).run(planId, requestHash, approvalContext, (/* @__PURE__ */ new Date()).toISOString());
     return Number(result.changes) === 1;
   }
+  /**
+   * Credits spent since `sinceIso`: what kie.ai charged where known, else the
+   * estimate, else `unknownPlaceholder` (an item approved with an unknown
+   * price counts as a full plan until its real charge arrives).
+   */
+  spentSince(sinceIso, unknownPlaceholder) {
+    const row = this.db.prepare(`SELECT COALESCE(SUM(COALESCE(actual, estimated, ?)), 0) AS spent
+         FROM spend_ledger WHERE created_at > ?`).get(unknownPlaceholder, sinceIso);
+    return Math.ceil(Number(row.spent) * 100) / 100;
+  }
+  /**
+   * Claims an approved plan only if the daily budget still has room, and
+   * reserves its estimate in the ledger, in one write transaction. Two plans
+   * racing for the last of the budget (in one process or several) can't both
+   * pass: BEGIN IMMEDIATE takes the write lock before the budget is read.
+   */
+  claimGenerationPlanWithinBudget(planId, requestHash, approvalContext, budget) {
+    const now = budget.nowIso ?? (/* @__PURE__ */ new Date()).toISOString();
+    const since = new Date(Date.parse(now) - 24 * 60 * 60 * 1e3).toISOString();
+    const planCost = budget.itemEstimates.reduce((sum, value) => sum + (value ?? budget.unknownPlaceholder), 0);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const spent = this.spentSince(since, budget.unknownPlaceholder);
+      if (spent + planCost > budget.maxPerDay) {
+        this.db.exec("ROLLBACK");
+        return {
+          claimed: false,
+          spentLast24h: spent,
+          reason: `The daily cap would be passed: ${spent} credits spent in the last 24 hours plus up to ${planCost} for this plan is over ${budget.maxPerDay} (KIE_AI_MAX_CREDITS_PER_DAY).`
+        };
+      }
+      const claim = this.db.prepare(`UPDATE generation_plans
+           SET status = 'submitting', submitted_at = CURRENT_TIMESTAMP
+            WHERE plan_id = ? AND request_hash = ? AND approval_context = ? AND status = 'approved' AND expires_at > ?`).run(planId, requestHash, approvalContext, now);
+      if (Number(claim.changes) !== 1) {
+        this.db.exec("ROLLBACK");
+        return { claimed: false, spentLast24h: spent };
+      }
+      const reserve = this.db.prepare(`INSERT INTO spend_ledger (plan_id, item_index, estimated, created_at) VALUES (?, ?, ?, ?)`);
+      budget.itemEstimates.forEach((estimate, index) => {
+        reserve.run(planId, index, estimate ?? null, now);
+      });
+      this.db.exec("COMMIT");
+      return { claimed: true, spentLast24h: spent };
+    } catch (error51) {
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+      }
+      throw error51;
+    }
+  }
+  /**
+   * After submission: link each reserved item to its task so the real charge
+   * can replace the estimate later. Items without a task id keep their
+   * reservation: a timeout can hide a task kie.ai did create, so releasing it
+   * would let the daily cap undercount. It ages out after 24 hours.
+   */
+  settlePlanSpend(planId, results) {
+    const link = this.db.prepare(`UPDATE spend_ledger SET task_id = ? WHERE plan_id = ? AND item_index = ?`);
+    for (const result of results) {
+      if (result.taskId)
+        link.run(result.taskId, planId, result.index);
+    }
+  }
+  /** Records what kie.ai actually charged for a task, when it reports it. */
+  recordActualCredits(taskId, credits) {
+    this.db.prepare(`UPDATE spend_ledger SET actual = ? WHERE task_id = ?`).run(credits, taskId);
+  }
   async finishGenerationPlan(planId, results) {
     this.db.prepare(`UPDATE generation_plans SET status = 'submitted', task_results_json = ? WHERE plan_id = ? AND status = 'submitting'`).run(JSON.stringify(results), planId);
   }
@@ -1748,6 +1833,78 @@ var TaskDatabase = class {
     this.db.close();
   }
 };
+
+// packages/core/dist/spend-policy.js
+var DEFAULT_SPEND_POLICY = {
+  approval: "form",
+  maxCreditsPerPlan: 150,
+  maxCreditsPerDay: 600,
+  autoApproveCredits: 0
+};
+function envSetting(name) {
+  const raw = process.env[name]?.trim();
+  if (!raw || /^\$\{[^}]*\}$/.test(raw))
+    return void 0;
+  return raw;
+}
+function numberFromEnv(name, fallback) {
+  const raw = envSetting(name);
+  if (!raw)
+    return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} must be a number of credits, 0 or more (got "${raw}").`);
+  }
+  return value;
+}
+function spendPolicyFromEnv() {
+  const mode = (envSetting("KIE_AI_APPROVAL") ?? "").toLowerCase();
+  if (mode && mode !== "form" && mode !== "chat" && mode !== "auto") {
+    throw new Error(`KIE_AI_APPROVAL must be form, chat or auto (got "${process.env.KIE_AI_APPROVAL}").`);
+  }
+  return {
+    approval: mode || DEFAULT_SPEND_POLICY.approval,
+    maxCreditsPerPlan: numberFromEnv("KIE_AI_MAX_CREDITS_PER_PLAN", DEFAULT_SPEND_POLICY.maxCreditsPerPlan),
+    maxCreditsPerDay: numberFromEnv("KIE_AI_MAX_CREDITS_PER_DAY", DEFAULT_SPEND_POLICY.maxCreditsPerDay),
+    autoApproveCredits: numberFromEnv("KIE_AI_AUTO_APPROVE_CREDITS", DEFAULT_SPEND_POLICY.autoApproveCredits)
+  };
+}
+function planCredits(plan) {
+  let total = 0;
+  for (const item of plan.items) {
+    const credits = item.price.status === "exact" || item.price.status === "estimated" ? item.price.credits : void 0;
+    if (typeof credits !== "number")
+      return void 0;
+    total += credits;
+  }
+  return Math.ceil(total * 100) / 100;
+}
+function checkCaps(plan, policy, spentLast24h, options = {}) {
+  const credits = planCredits(plan);
+  const problems = [];
+  if (credits === void 0) {
+    if (policy.approval === "auto" || !options.acceptUnknownPrice) {
+      problems.push("The price of at least one item is unknown, so the credit caps can't be checked. A person must approve it and accept the unknown price; auto approval never does.");
+    }
+    if (spentLast24h >= policy.maxCreditsPerDay) {
+      problems.push(`The daily cap is used up: ${spentLast24h} of ${policy.maxCreditsPerDay} credits in the last 24 hours (KIE_AI_MAX_CREDITS_PER_DAY).`);
+    }
+    return { ok: problems.length === 0, problems };
+  }
+  if (credits > policy.maxCreditsPerPlan) {
+    problems.push(`This plan may cost up to ${credits} credits, over the per-plan cap of ${policy.maxCreditsPerPlan} (KIE_AI_MAX_CREDITS_PER_PLAN). Split it, choose cheaper settings, or have the person who runs the server raise the cap.`);
+  }
+  if (spentLast24h + credits > policy.maxCreditsPerDay) {
+    problems.push(`This plan (up to ${credits} credits) plus ${spentLast24h} credits spent in the last 24 hours would pass the daily cap of ${policy.maxCreditsPerDay} (KIE_AI_MAX_CREDITS_PER_DAY).`);
+  }
+  return { ok: problems.length === 0, problems, credits };
+}
+function autoApproves(plan, policy) {
+  if (policy.approval !== "auto")
+    return false;
+  const credits = planCredits(plan);
+  return credits !== void 0 && credits <= policy.autoApproveCredits;
+}
 
 // packages/core/dist/tools/format-error.js
 function formatToolError(toolName, error51, paramDescriptions) {
@@ -17123,6 +17280,10 @@ var GetModelStatusSchema = external_exports.object({
   model: CatalogModelIdSchema
 });
 var GetBalanceSchema = external_exports.object({});
+var ApproveMediaGenerationSchema = external_exports.object({
+  planId: external_exports.string().uuid().describe("The planId from prepare_media_generation that the person said yes to"),
+  acceptUnknownPrice: external_exports.boolean().optional().describe("Set only when the plan has an item with an unknown price and the person was told so before saying yes")
+});
 var RunModelSchema = external_exports.object({
   model: CatalogModelIdSchema,
   input: external_exports.record(external_exports.string(), external_exports.unknown()).describe("The model's input object, with the field names from get_model_schema. Media inputs must be public URLs (upload local files first)"),
@@ -17151,6 +17312,81 @@ var Veo3Get1080pVideoSchema = external_exports.object({
   task_id: external_exports.string().min(1).describe("Veo3 task ID to get 1080p video for"),
   index: external_exports.number().int().min(0).optional().describe("Video index (optional, for multiple video results)")
 });
+
+// packages/core/dist/tools/catalog-helpers.js
+function requireCatalog(ctx) {
+  if (!ctx.catalog) {
+    throw new Error("The live kie.ai catalog is not available in this adapter. Update the server or CLI.");
+  }
+  return ctx.catalog;
+}
+function jsonResult(body, structuredContent) {
+  return {
+    content: [{ type: "text", text: JSON.stringify(body, null, 2) }],
+    ...structuredContent ? { structuredContent } : {}
+  };
+}
+function shortPrice(text) {
+  if (!text)
+    return void 0;
+  const line = text.split("\n")[0].trim();
+  return line.length > 180 ? `${line.slice(0, 179)}\u2026` : line;
+}
+
+// packages/core/dist/tools/approve_media_generation.js
+var approveMediaGenerationTool = {
+  name: "approve_media_generation",
+  description: "Chat approval mode only (KIE_AI_APPROVAL=chat): record the person's yes to a prepared plan after showing them every item and its price. Never call it without their explicit yes to this exact plan. Credit caps still apply. In form mode the app's approval form does this instead.",
+  category: "utility",
+  schema: ApproveMediaGenerationSchema,
+  async run(args, ctx) {
+    try {
+      const request = ApproveMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError)
+        throw new Error(ctx.spendPolicyError);
+      const policy = ctx.spendPolicy ?? DEFAULT_SPEND_POLICY;
+      if (policy.approval !== "chat") {
+        throw new Error(policy.approval === "form" ? "This server is in form approval mode: the person approves in the app's form or in the CLI's terminal prompt, not through this tool." : "This server is in auto approval mode: plans within the limit are approved automatically, and others need a person in form or chat mode.");
+      }
+      const stored = await ctx.db.getGenerationPlan(request.planId);
+      if (!stored || stored.status !== "prepared") {
+        throw new Error("That plan doesn't exist, was already approved or submitted, or has expired. Prepare a new one.");
+      }
+      const spent = ctx.db.spentSince(new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString(), policy.maxCreditsPerPlan);
+      const caps = checkCaps(stored.plan, policy, spent, {
+        acceptUnknownPrice: request.acceptUnknownPrice === true
+      });
+      if (!caps.ok) {
+        return {
+          ...jsonResult({
+            success: false,
+            planId: request.planId,
+            status: "prepared",
+            approved: false,
+            problems: caps.problems
+          }),
+          isError: true
+        };
+      }
+      const approved = await ctx.db.approveGenerationPlan(request.planId, stored.requestHash, ctx.approvalContext);
+      if (!approved) {
+        throw new Error("Approval could not be recorded: the plan expired, changed, or belongs to another session.");
+      }
+      return jsonResult({
+        success: true,
+        planId: request.planId,
+        status: "approved",
+        approved: true,
+        message: "Approval recorded. Submit this planId with submit_media_generation before it expires."
+      }, { plan_id: request.planId, status: "approved", approved: true });
+    } catch (error51) {
+      return ctx.formatError("approve_media_generation", error51, {
+        planId: "Required: the planId the person said yes to",
+        acceptUnknownPrice: "Optional: true only if the person was told the price is unknown"
+      });
+    }
+  }
+};
 
 // packages/core/dist/tools/bytedance_seedance_video.js
 var bytedanceSeedanceVideoTool = {
@@ -17742,26 +17978,6 @@ var geminiOmniTool = {
   }
 };
 
-// packages/core/dist/tools/catalog-helpers.js
-function requireCatalog(ctx) {
-  if (!ctx.catalog) {
-    throw new Error("The live kie.ai catalog is not available in this adapter. Update the server or CLI.");
-  }
-  return ctx.catalog;
-}
-function jsonResult(body, structuredContent) {
-  return {
-    content: [{ type: "text", text: JSON.stringify(body, null, 2) }],
-    ...structuredContent ? { structuredContent } : {}
-  };
-}
-function shortPrice(text) {
-  if (!text)
-    return void 0;
-  const line = text.split("\n")[0].trim();
-  return line.length > 180 ? `${line.slice(0, 179)}\u2026` : line;
-}
-
 // packages/core/dist/tools/get_balance.js
 var getBalanceTool = {
   name: "get_balance",
@@ -18038,6 +18254,9 @@ var getTaskStatusTool = {
             error_message: errorMessage,
             credits_consumed: creditsConsumed
           });
+          if (typeof creditsConsumed === "number" && (status === "completed" || status === "failed")) {
+            ctx.db.recordActualCredits(task_id, creditsConsumed);
+          }
         }
       } catch (error51) {
       }
@@ -19359,6 +19578,144 @@ var omniHumanVideoTool = {
 // packages/core/dist/generation-plan.js
 import { createHash, randomUUID as randomUUID2 } from "crypto";
 
+// packages/core/dist/pricing/estimate.js
+var RESOLUTION = /\b(\d{3,4})\s?p\b|\b([1248])\s?k\b/gi;
+function normalizeResolution(value) {
+  const match = /^\s*(\d{3,4})\s?p\s*$/i.exec(value);
+  if (match)
+    return `${match[1]}p`;
+  const k = /^\s*([1248])\s?k\s*$/i.exec(value);
+  if (k)
+    return `${k[1]}k`;
+  return void 0;
+}
+var PER_SECOND = /^\s*(?:\([^)]*\)\s*)?(?:\/\s*s(?:ec(?:ond)?)?\b|per\s+(?:1\s+|video\s+)?sec(?:ond)?\b)/i;
+var UNSUPPORTED = [
+  /per\s+[\d,.]*\s*(?:k\s+)?(?:characters?|chars?|words?|tokens?)\b/i,
+  /\btokens?\b/i,
+  /mega\s?pixels?|\bper\s+MP\b/i,
+  /per\s+minute|\/\s*min\b/i,
+  /per\s+\d+\s*(?:seconds?|s)\b/i,
+  /\binput\s+(?:images?|videos?|audio|duration)\b|\b(?:image|video|audio)\s+input\b/i,
+  /\badditional\s+(?:images?|inputs?)\b/i,
+  /\(\s*input|input\s*\+|\+\s*input/i,
+  /\bper\s+(?:layer|reference|input)\b/i
+];
+function normalizeText(text) {
+  return text.replace(/／/g, "/").replace(/，/g, ", ").replace(/：/g, ": ").replace(/。/g, ". ").replace(/(\d)\s+p\b/gi, "$1p");
+}
+function mentions(text) {
+  const found = [];
+  const credit = /(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*credits?\b/gi;
+  for (let m = credit.exec(text); m; m = credit.exec(text)) {
+    const after = text.slice(m.index + m[0].length, m.index + m[0].length + 40);
+    const before = text.slice(Math.max(0, m.index - 60), m.index);
+    const perSecond = PER_SECOND.test(after) || /(?:per|each|every|1)\s+second[^.;\n]*$/i.test(before) || /\bper\s+second\b/i.test(after.slice(0, 30));
+    found.push({
+      credits: Number(m[1].replace(/,/g, "")),
+      index: m.index,
+      perSecond
+    });
+  }
+  const sentences = text.split(/(?<!\d)[.;\n](?!\d)/);
+  let offset = 0;
+  for (const sentence of sentences) {
+    const start = text.indexOf(sentence, offset);
+    const end = start + sentence.length;
+    offset = end;
+    if (/\b(?:1|one|each|every|per)\s+(?:video\s+)?second\b/i.test(sentence) && !/\bper\s+(?:video|image|clip|generation)\b/i.test(sentence)) {
+      for (const mention of found) {
+        if (mention.index >= start && mention.index < end) {
+          mention.perSecond = true;
+        }
+      }
+    }
+  }
+  for (const [i, mention] of found.entries()) {
+    const tail = text.slice(mention.index, mention.index + 60);
+    const after = /^[\d.\s]*credits?[^;,\n]{0,28}?\b(?:for|at)\s+(\d{3,4}\s?p|[1248]\s?k)\b/i.exec(tail);
+    if (after) {
+      mention.resolution = normalizeResolution(after[1]);
+      continue;
+    }
+    const from = i > 0 ? found[i - 1].index : 0;
+    const head = text.slice(Math.max(from, mention.index - 80), mention.index);
+    const lineStart = Math.max(head.lastIndexOf("\n"), -1) + 1;
+    const scope = head.slice(lineStart);
+    const tokens = [...scope.matchAll(RESOLUTION)];
+    const last = tokens[tokens.length - 1];
+    if (last) {
+      mention.resolution = normalizeResolution(last[0]);
+    } else if (i > 0 && !text.slice(from, mention.index).includes("\n")) {
+      mention.resolution = found[i - 1].resolution;
+    }
+  }
+  return found;
+}
+function estimateFromPriceText(rawText, request) {
+  if (!rawText?.trim())
+    return { status: "unknown", basis: "kie.ai lists no price" };
+  const text = normalizeText(rawText);
+  if (UNSUPPORTED.some((pattern) => pattern.test(text))) {
+    return {
+      status: "unknown",
+      basis: "kie.ai prices this by a unit or formula the estimate can't bound (characters, tokens, megapixels, input media or similar); read its price text"
+    };
+  }
+  if (/\bis free\b/i.test(text) && !/\d\s*credits?/i.test(text)) {
+    return {
+      status: "estimated",
+      credits: 0,
+      basis: "kie.ai lists it as free"
+    };
+  }
+  const all = mentions(text).filter((m) => m.credits > 0);
+  if (all.length === 0) {
+    return {
+      status: "unknown",
+      basis: "no credit amount in kie.ai's price text"
+    };
+  }
+  const wanted = request.resolution ? normalizeResolution(request.resolution) : void 0;
+  const durationTiers = /\b\d+\s?s\b/i.test(text.replace(/\/\s*s(?:ec(?:ond)?)?\b/gi, "")) || /→|->/.test(text);
+  const matching = wanted && !durationTiers ? all.filter((m) => m.resolution === wanted) : [];
+  if (wanted && !durationTiers && matching.length === 0) {
+    const listed = [...text.matchAll(RESOLUTION)].some((token) => normalizeResolution(token[0]) === wanted);
+    if (listed) {
+      return {
+        status: "unknown",
+        basis: `kie.ai lists ${wanted} without a credit price`
+      };
+    }
+  }
+  const pool = matching.length > 0 ? matching : all;
+  const perSecond = pool.some((m) => m.perSecond);
+  const top2 = Math.max(...pool.map((m) => m.credits));
+  const outputs = Math.max(1, request.outputCount ?? 1);
+  const where = matching.length > 0 ? ` at ${wanted}` : durationTiers ? " (highest listed price; it depends on duration)" : " (highest listed price)";
+  if (perSecond) {
+    if (!request.durationSeconds || request.durationSeconds <= 0) {
+      return {
+        status: "unknown",
+        basis: "priced per second, and the duration is not known"
+      };
+    }
+    return {
+      status: "estimated",
+      credits: round(top2 * request.durationSeconds * outputs),
+      basis: `up to ${top2} credits/s \xD7 ${request.durationSeconds} s${outputs > 1 ? ` \xD7 ${outputs}` : ""}${where}`
+    };
+  }
+  return {
+    status: "estimated",
+    credits: round(top2 * outputs),
+    basis: `up to ${top2} credits${outputs > 1 ? ` \xD7 ${outputs}` : ""}${where}`
+  };
+}
+function round(value) {
+  return Math.ceil(value * 100) / 100;
+}
+
 // packages/core/dist/pricing/rate-card.js
 var RATE_CARD_VERSION = "2026-08-17";
 var RATE_CARD = [
@@ -19518,6 +19875,15 @@ var CATALOG_COUNT_FIELDS = [
   "batch_size",
   "count"
 ];
+function highestCount(input) {
+  let highest = 1;
+  for (const key of CATALOG_COUNT_FIELDS) {
+    const count = Number(input[key]);
+    if (Number.isFinite(count) && count > highest)
+      highest = Math.ceil(count);
+  }
+  return highest;
+}
 function resolveOutputCount(args, keys = ["max_images", "num_images", "videoBatchSize", "repeat"]) {
   for (const key of keys) {
     const value = args[key];
@@ -19544,7 +19910,7 @@ function prepareGenerationPlan(requestedItems, tools, options = {}) {
     const tool = tools.get(requested.tool);
     const catalog = getCatalogEntry(requested.tool);
     if (!tool || !catalog)
-      throw new Error(`Unsupported generation tool: ${requested.tool}`);
+      throw new Error(`"${requested.tool}" is not a generation tool here. For a kie.ai catalog model use { "tool": "run_model", "args": { "model": "${requested.tool}", "input": { ... } } } (fields from get_model_schema); list_models lists the hand-tuned tools.`);
     const profileDefaults = catalog.defaultProfile ? POLICY_DEFAULTS[catalog.defaultProfile] ?? {} : {};
     const isHailuoNonTextMode = requested.tool === "hailuo_video" && (requested.args.imageUrl || hasValues(requested.args.referenceImageUrls) || hasValues(requested.args.referenceVideoUrls) || hasValues(requested.args.referenceAudioUrls));
     const applicableProfileDefaults = isHailuoNonTextMode ? Object.fromEntries(Object.entries(profileDefaults).filter(([key]) => key !== "aspectRatio")) : profileDefaults;
@@ -19558,9 +19924,22 @@ function prepareGenerationPlan(requestedItems, tools, options = {}) {
     const details = options.itemDetails?.[index];
     const model = resolveModel(requested.tool, parsed);
     const mode = details?.mode ?? resolveGenerationMode(requested.tool, parsed);
-    const outputCount = requested.tool === "run_model" ? resolveOutputCount(parsed.input ?? {}, CATALOG_COUNT_FIELDS) : resolveOutputCount(parsed);
+    const outputCount = requested.tool === "run_model" ? Math.max(highestCount(parsed.input ?? {}), details?.defaultOutputCount ?? 1) : resolveOutputCount(parsed);
     const quoted = priceRequest(requested.tool, { ...parsed, outputCount }, model, mode);
-    const price = details?.priceNote && quoted.status !== "exact" ? { ...quoted, note: details.priceNote } : quoted;
+    let price = quoted;
+    if (details?.priceNote && quoted.status !== "exact") {
+      const estimate = estimateFromPriceText(details.priceNote, {
+        ...details.priceInputs,
+        outputCount
+      });
+      price = estimate.status === "estimated" ? {
+        ...quoted,
+        status: "estimated",
+        credits: estimate.credits,
+        basis: estimate.basis,
+        note: details.priceNote
+      } : { ...quoted, basis: estimate.basis, note: details.priceNote };
+    }
     return {
       index,
       tool: requested.tool,
@@ -19575,14 +19954,15 @@ function prepareGenerationPlan(requestedItems, tools, options = {}) {
     };
   });
   const exact = items.every((item) => item.price.status === "exact");
-  const totalCredits = exact ? items.reduce((sum, item) => sum + (item.price.credits ?? 0), 0) : void 0;
+  const numbered = items.every((item) => (item.price.status === "exact" || item.price.status === "estimated") && typeof item.price.credits === "number");
+  const totalCredits = numbered ? Math.ceil(items.reduce((sum, item) => sum + (item.price.credits ?? 0), 0) * 100) / 100 : void 0;
   const payload = {
     createdAt,
     expiresAt,
     defaultProfile,
     maxConcurrency,
     items,
-    total: exact ? { credits: totalCredits, status: "exact" } : { status: "unknown" }
+    total: exact ? { credits: totalCredits, status: "exact" } : numbered ? { credits: totalCredits, status: "estimated" } : { status: "unknown" }
   };
   return {
     id: randomUUID2(),
@@ -19639,6 +20019,53 @@ function approvalRequiredResult(plan) {
     _meta: { "kie/approval-plan": plan }
   };
 }
+async function recordApproval(plan, ctx, _by) {
+  return ctx.db.approveGenerationPlan(plan.id, plan.requestHash, ctx.approvalContext);
+}
+function approvedResult(plan, message) {
+  return jsonResult({
+    success: true,
+    planId: plan.id,
+    plan,
+    status: "approved",
+    approved: true,
+    message: `${message} No provider task was created; submit this planId before it expires.`
+  }, { plan_id: plan.id, status: "approved", approved: true });
+}
+function chatApprovalResult(plan, spent) {
+  const unknown2 = plan.total.status === "unknown";
+  return jsonResult({
+    success: true,
+    planId: plan.id,
+    plan,
+    status: "prepared",
+    approved: false,
+    spent_last_24h: spent,
+    next_step: `Show the person every item of this plan with its price${unknown2 ? " (the price of at least one item is unknown: say so plainly)" : ""}, and ask a plain yes or no. Only after they say yes to this plan, call approve_media_generation with planId "${plan.id}"${unknown2 ? " and acceptUnknownPrice: true" : ""}, then submit_media_generation. Never approve on their behalf, and never reuse an earlier yes for a plan they haven't seen.`,
+    message: "No provider task was created. The plan waits for the person's yes."
+  }, { plan_id: plan.id, status: "prepared", approved: false });
+}
+function priceInputsFor(input, fields) {
+  const resolution = input.resolution ?? fields.resolution?.default;
+  const durationKey = ["duration", "duration_seconds", "seconds"].find((key) => key in input || key in fields);
+  let durationSeconds;
+  if (durationKey) {
+    const given = Number(input[durationKey]);
+    if (Number.isFinite(given) && given > 0)
+      durationSeconds = given;
+    else {
+      const field = fields[durationKey] ?? {};
+      const options = (field.enum ?? []).map(Number).filter((n) => Number.isFinite(n));
+      const max = options.length > 0 ? Math.max(...options) : Number.isFinite(Number(field.maximum)) ? Number(field.maximum) : Number(field.default);
+      if (Number.isFinite(max) && max > 0)
+        durationSeconds = max;
+    }
+  }
+  return {
+    ...typeof resolution === "string" ? { resolution } : {},
+    ...durationSeconds ? { durationSeconds } : {}
+  };
+}
 async function catalogDetails(items, ctx) {
   const details = [];
   for (const [index, item] of items.entries()) {
@@ -19657,7 +20084,10 @@ async function catalogDetails(items, ctx) {
       throw new Error(`Item ${index + 1} (${check2.shape.model}) does not match the model's schema: ${check2.errors.join("; ")}.${notes} Call get_model_schema for the accepted fields.`);
     }
     const entry = await catalog.getModel(check2.shape.model);
+    const fields = check2.shape.inputSchema?.properties ?? {};
     details.push({
+      priceInputs: priceInputsFor(input, fields),
+      defaultOutputCount: Math.max(1, ...CATALOG_COUNT_FIELDS.map((key) => Number(fields[key]?.default)).filter((n) => Number.isFinite(n))),
       // kie.ai's listing says what the model offers, not what this request
       // does (Seedance 1.5 Pro is listed only as image-to-video but also does
       // text-to-video), so label it as the listing.
@@ -19676,6 +20106,8 @@ var prepareMediaGenerationTool = {
   async run(args, ctx) {
     try {
       const request = PrepareMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError)
+        throw new Error(ctx.spendPolicyError);
       if (typeof ctx.client.hasApiKey === "function" && !ctx.client.hasApiKey()) {
         throw new Error(MISSING_API_KEY_MESSAGE);
       }
@@ -19687,9 +20119,34 @@ var prepareMediaGenerationTool = {
         expiresInSeconds: request.expiresInSeconds,
         itemDetails
       });
+      const policy = ctx.spendPolicy ?? DEFAULT_SPEND_POLICY;
+      const spent = ctx.db.spentSince(new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString(), policy.maxCreditsPerPlan);
+      const caps = checkCaps(plan, policy, spent, {
+        // A person can still accept an unknown price when approving.
+        acceptUnknownPrice: true
+      });
+      if (!caps.ok) {
+        return {
+          ...jsonResult({
+            success: false,
+            status: "blocked",
+            plan,
+            problems: caps.problems,
+            spent_last_24h: spent,
+            message: "This plan is over a credit cap, so it was not saved and can't be approved. Nothing was sent to kie.ai."
+          }),
+          isError: true
+        };
+      }
       await ctx.db.createGenerationPlan(plan, ctx.approvalContext);
+      if (autoApproves(plan, policy)) {
+        return await recordApproval(plan, ctx, "auto") ? approvedResult(plan, "Approved automatically: the estimate is within KIE_AI_AUTO_APPROVE_CREDITS.") : pendingResult(plan, "Approval could not be recorded because the plan expired, changed, or was no longer prepared.");
+      }
+      if (policy.approval === "chat") {
+        return chatApprovalResult(plan, spent);
+      }
       if (!ctx.requestPlanApproval) {
-        return pendingResult(plan, "This transport cannot request approval during preparation. Use its explicit approval boundary before submission.");
+        return pendingResult(plan, policy.approval === "auto" ? `This plan is above the auto-approval limit (${policy.autoApproveCredits} credits) or has an unknown price, and this app can't show an approval form, so a person can't approve it here. Choose cheaper settings, or ask the person who runs the server to change the approval mode.` : "This app can't show an approval form, so this plan can't be approved here. The person who runs the server can switch it to chat approval (KIE_AI_APPROVAL=chat), where the agent shows the plan and relays their yes.");
       }
       let decision;
       try {
@@ -19703,7 +20160,7 @@ var prepareMediaGenerationTool = {
       if (!decision.approved) {
         return pendingResult(plan, decision.reason);
       }
-      if (!await ctx.db.approveGenerationPlan(plan.id, plan.requestHash, ctx.approvalContext)) {
+      if (!await recordApproval(plan, ctx, "form")) {
         return pendingResult(plan, "Approval could not be recorded because the plan expired, changed, or was no longer prepared.");
       }
       return {
@@ -20066,10 +20523,22 @@ function parseToolResult(result) {
 function extractTaskId(result) {
   if (!result || typeof result !== "object")
     return void 0;
-  const data = result;
-  if (typeof data.task_id === "string")
-    return data.task_id;
-  return typeof data.response?.data?.taskId === "string" ? data.response.data.taskId : void 0;
+  const record2 = result;
+  const nested = [
+    record2,
+    record2.data,
+    record2.response?.data
+  ];
+  for (const candidate of nested) {
+    if (!candidate || typeof candidate !== "object")
+      continue;
+    const fields = candidate;
+    for (const key of ["task_id", "taskId"]) {
+      if (typeof fields[key] === "string" && fields[key])
+        return fields[key];
+    }
+  }
+  return void 0;
 }
 function resultError(envelope, result) {
   if (envelope.isError)
@@ -20103,6 +20572,8 @@ var submitMediaGenerationTool = {
   async run(args, ctx) {
     try {
       const { planId } = SubmitMediaGenerationSchema.parse(args);
+      if (ctx.spendPolicyError)
+        throw new Error(ctx.spendPolicyError);
       const stored = await ctx.db.getGenerationPlan(planId);
       if (!stored)
         throw new Error("Prepared plan not found.");
@@ -20129,8 +20600,18 @@ var submitMediaGenerationTool = {
       if (unavailableTools.length > 0) {
         throw new Error(`Prepared plan contains unavailable tool(s): ${unavailableTools.join(", ")}.`);
       }
-      if (!await ctx.db.claimGenerationPlan(planId, stored.requestHash, ctx.approvalContext)) {
-        throw new Error("Approved plan is unavailable in this approval context, expired, changed, or already submitted.");
+      const policy = ctx.spendPolicy ?? DEFAULT_SPEND_POLICY;
+      const credits = planCredits(plan);
+      if (credits !== void 0 && credits > policy.maxCreditsPerPlan) {
+        throw new Error(`This plan may cost up to ${credits} credits, over the per-plan cap of ${policy.maxCreditsPerPlan} (KIE_AI_MAX_CREDITS_PER_PLAN). Nothing was sent to kie.ai.`);
+      }
+      const claim = ctx.db.claimGenerationPlanWithinBudget(planId, stored.requestHash, ctx.approvalContext, {
+        itemEstimates: plan.items.map((item) => item.price.status === "exact" || item.price.status === "estimated" ? item.price.credits : void 0),
+        maxPerDay: policy.maxCreditsPerDay,
+        unknownPlaceholder: policy.maxCreditsPerPlan
+      });
+      if (!claim.claimed) {
+        throw new Error(claim.reason ? `${claim.reason} Nothing was sent to kie.ai.` : "Approved plan is unavailable in this approval context, expired, changed, or already submitted.");
       }
       const results = await withConcurrency(plan.items, plan.maxConcurrency, async (item) => {
         const target = ctx.getTool(item.tool);
@@ -20160,6 +20641,7 @@ var submitMediaGenerationTool = {
       const failed = results.some((result) => result.error);
       let recordWarning;
       try {
+        ctx.db.settlePlanSpend(planId, results);
         if (failed)
           await ctx.db.failGenerationPlan(planId, results);
         else
@@ -20168,6 +20650,7 @@ var submitMediaGenerationTool = {
         recordWarning = `The tasks below were sent to kie.ai, but saving the outcome locally failed (${error51 instanceof Error ? error51.message : String(error51)}). Do not submit this work again; follow the task IDs below.`;
       }
       const created = results.filter((result) => result.taskId).length;
+      const unsure = results.filter((result) => !result.taskId).length;
       const body = {
         success: !failed,
         planId,
@@ -20175,7 +20658,10 @@ var submitMediaGenerationTool = {
         results,
         ...failed ? {
           error: "One or more plan items failed.",
-          note: created > 0 ? `${created} task(s) were created and will be charged. Wait for them with wait_for_task; do not resubmit them. Only the failed items need a new plan.` : "No task was created, so nothing was charged."
+          note: [
+            created > 0 ? `${created} task(s) were created and will be charged: wait for them with wait_for_task and never resubmit them.` : "",
+            unsure > 0 ? `${unsure} item(s) returned no task id. kie.ai may have rejected them (not charged) or the request may have timed out after kie.ai created a task. Their estimate stays booked against the daily cap. Check list_tasks and the kie.ai logs (https://kie.ai/logs) before planning them again.` : ""
+          ].filter(Boolean).join(" ")
         } : {},
         ...recordWarning ? { warning: recordWarning } : {}
       };
@@ -20882,6 +21368,7 @@ var zImageTool = {
 
 // packages/core/dist/tools/index.js
 var TOOL_REGISTRY = [
+  approveMediaGenerationTool,
   bytedanceSeedanceVideoTool,
   bytedanceSeedreamImageTool,
   elevenlabsTtsTool,
@@ -20936,7 +21423,7 @@ function isWithinRoot(candidate, root) {
   return path === "" || !path.startsWith("..") && !isAbsolute(path);
 }
 function apiKeyFromEnv() {
-  return process.env.KIE_AI_API_KEY || process.env.KIE_API_KEY || "";
+  return envSetting("KIE_AI_API_KEY") || envSetting("KIE_API_KEY") || "";
 }
 function configFromEnv() {
   return {
@@ -20959,6 +21446,7 @@ function createToolContext(approvalContext = "cli") {
     client,
     db,
     catalog: new KieCatalog(client),
+    spendPolicy: spendPolicyFromEnv(),
     approvalContext,
     getCallbackUrl: (url2) => url2 || process.env.KIE_AI_CALLBACK_URL || config2.callbackUrlFallback,
     formatError: formatToolError,
@@ -23143,8 +23631,8 @@ var CommandInstance = class {
   commandFromFilename(filename) {
     return this.shim.path.basename(filename, this.shim.path.extname(filename));
   }
-  extractDesc({ describe: describe3, description, desc }) {
-    for (const test of [describe3, description, desc]) {
+  extractDesc({ describe: describe4, description, desc }) {
+    for (const test of [describe4, description, desc]) {
       if (typeof test === "string" || test === false)
         return test;
       assertNotStrictEqual(test, true, this.shim);
@@ -23320,7 +23808,7 @@ function usage(yargs, shim3) {
   };
   self.getCommands = () => commands;
   let descriptions = {};
-  self.describe = function describe3(keyOrKeys, desc) {
+  self.describe = function describe4(keyOrKeys, desc) {
     if (Array.isArray(keyOrKeys)) {
       keyOrKeys.forEach((k) => {
         self.describe(k, desc);
@@ -25859,21 +26347,109 @@ var Yargs = YargsFactory(esm_default);
 var yargs_default = Yargs;
 
 // packages/cli/src/submission-approval.ts
-async function approvePlanForSubmission(db, args) {
-  if (typeof args.planId !== "string" || args.approve !== args.planId) {
-    throw new Error(
-      "Submitting a media plan requires --approve <planId> matching --planId."
-    );
-  }
-  const stored = await db.getGenerationPlan(args.planId);
-  if (!stored || !await db.approveGenerationPlan(args.planId, stored.requestHash, "cli")) {
+import { randomInt } from "node:crypto";
+var CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function approvalCode() {
+  return Array.from(
+    { length: 4 },
+    () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]
+  ).join("");
+}
+function describe3(plan, spent, policy) {
+  const lines = plan.items.map((item) => {
+    const price = item.price.status === "exact" ? `${item.price.credits} credits` : item.price.status === "estimated" ? `up to ${item.price.credits} credits (${item.price.basis ?? "estimate"})` : "price UNKNOWN";
+    return `  ${item.index + 1}. ${item.tool} ${item.model} \xB7 ${item.outputCount} output(s) \xB7 ${price}`;
+  });
+  const total = plan.total.status === "unknown" ? "UNKNOWN for at least one item" : `${plan.total.status === "exact" ? "" : "up to "}${plan.total.credits} credits`;
+  return [
+    `Plan ${plan.id}`,
+    ...lines,
+    `  Total: ${total}`,
+    `  Spent in the last 24 hours: ${spent} of ${policy.maxCreditsPerDay} credits (cap per plan ${policy.maxCreditsPerPlan})`
+  ].join("\n");
+}
+async function approve(db, planId, requestHash) {
+  if (!await db.approveGenerationPlan(planId, requestHash, "cli")) {
     throw new Error(
       "Plan could not be approved because it was not prepared, has expired, changed, or was already submitted."
     );
   }
 }
+async function approvePlanForSubmission(db, args, policy, io) {
+  if (typeof args.planId !== "string") {
+    throw new Error("Submitting a media plan requires --planId <planId>.");
+  }
+  const stored = await db.getGenerationPlan(args.planId);
+  if (!stored) {
+    throw new Error(
+      "No plan with that id. Prepare one with prepare_media_generation."
+    );
+  }
+  if (stored.status === "approved") return;
+  if (stored.status !== "prepared") {
+    throw new Error(
+      "Plan could not be approved because it has expired, changed, or was already submitted."
+    );
+  }
+  const spent = db.spentSince(
+    new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString(),
+    policy.maxCreditsPerPlan
+  );
+  if (io.interactive) {
+    io.say(describe3(stored.plan, spent, policy));
+    const unknown2 = stored.plan.total.status === "unknown";
+    const caps2 = checkCaps(stored.plan, policy, spent, {
+      acceptUnknownPrice: true
+    });
+    if (!caps2.ok) throw new Error(caps2.problems.join(" "));
+    const code = approvalCode();
+    const answer = await io.ask(
+      `${unknown2 ? "The price of at least one item is unknown. " : ""}Type ${code} to approve this plan and spend the credits, or anything else to cancel: `
+    );
+    if (answer.trim().toUpperCase() !== code) {
+      throw new Error("Not approved. Nothing was sent to kie.ai.");
+    }
+    await approve(db, args.planId, stored.requestHash);
+    return;
+  }
+  if (policy.approval !== "chat") {
+    throw new Error(
+      policy.approval === "form" ? "In form approval mode a person approves in a terminal: run this submit command yourself in a terminal and type the code it shows. (Other approval modes are described in the README.)" : "This plan wasn't approved automatically (it is above the auto-approve limit or its price is unknown). A person must approve it by running this submit command in a terminal."
+    );
+  }
+  if (args.approve !== args.planId) {
+    throw new Error(
+      "In chat approval mode, pass --approve <planId> matching --planId, and only after the person said yes to this plan."
+    );
+  }
+  const caps = checkCaps(stored.plan, policy, spent, {
+    acceptUnknownPrice: args.acceptUnknownPrice === true
+  });
+  if (!caps.ok) throw new Error(caps.problems.join(" "));
+  await approve(db, args.planId, stored.requestHash);
+}
 
 // packages/cli/src/index.ts
+function terminalIO() {
+  return {
+    interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+    async ask(question) {
+      const rl = createInterface({
+        input: process.stdin,
+        output: process.stderr
+      });
+      try {
+        return await rl.question(question);
+      } finally {
+        rl.close();
+      }
+    },
+    say(text) {
+      process.stderr.write(`${text}
+`);
+    }
+  };
+}
 function isJsonProp(p) {
   return p.type === "object" || p.type === "array" && p.items?.type === "object";
 }
@@ -25945,20 +26521,23 @@ function build() {
         if (tool.name === "submit_media_generation") {
           y.option("approve", {
             type: "string",
-            demandOption: true,
-            describe: "Explicitly approve this prepared plan ID for this submission"
+            describe: "Chat approval mode only: the planId again, passed after the person said yes. In a terminal you type a code instead"
+          });
+          y.option("accept-unknown-price", {
+            type: "boolean",
+            describe: "Chat approval mode only: the person was told an item's price is unknown and still said yes"
           });
         }
         return y;
       },
       async (argv) => {
-        if (tool.category === "catalog" && process.env.KIE_AI_ALLOW_DIRECT_GENERATION !== "true") {
+        if (tool.category !== "utility" && process.env.KIE_AI_ALLOW_DIRECT_GENERATION !== "true") {
           process.stdout.write(
             `${JSON.stringify(
               {
                 success: false,
                 tool: tool.name,
-                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> --approve <id>. Set KIE_AI_ALLOW_DIRECT_GENERATION=true to skip the plan.`
+                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> in a terminal, where you approve by typing the code it shows.`
               },
               null,
               2
@@ -25972,7 +26551,9 @@ function build() {
         if (tool.name === "submit_media_generation") {
           await approvePlanForSubmission(
             ctx.db,
-            argv
+            argv,
+            ctx.spendPolicy ?? DEFAULT_SPEND_POLICY,
+            terminalIO()
           );
         }
         await runTool(tool, props, argv, ctx);

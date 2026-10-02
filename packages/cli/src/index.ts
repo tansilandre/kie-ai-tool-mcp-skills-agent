@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+import { createInterface } from "node:readline/promises";
 import {
   createToolContext,
+  DEFAULT_SPEND_POLICY,
   TOOL_REGISTRY,
   type ToolContext,
   type ToolDef,
@@ -11,7 +13,31 @@ import {
 // expose the exact same tools. Run `kie-cli --help` to list them.
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { approvePlanForSubmission } from "./submission-approval.js";
+import {
+  type ApprovalIO,
+  approvePlanForSubmission,
+} from "./submission-approval.js";
+
+/** The person at the keyboard, if there is one. Agents' shells have no TTY. */
+function terminalIO(): ApprovalIO {
+  return {
+    interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+    async ask(question) {
+      const rl = createInterface({
+        input: process.stdin,
+        output: process.stderr,
+      });
+      try {
+        return await rl.question(question);
+      } finally {
+        rl.close();
+      }
+    },
+    say(text) {
+      process.stderr.write(`${text}\n`);
+    },
+  };
+}
 
 interface JsonProp {
   type?: string | string[];
@@ -127,21 +153,22 @@ function build() {
         if (tool.name === "submit_media_generation") {
           y.option("approve", {
             type: "string",
-            demandOption: true,
             describe:
-              "Explicitly approve this prepared plan ID for this submission",
+              "Chat approval mode only: the planId again, passed after the person said yes. In a terminal you type a code instead",
+          });
+          y.option("accept-unknown-price", {
+            type: "boolean",
+            describe:
+              "Chat approval mode only: the person was told an item's price is unknown and still said yes",
           });
         }
         return y;
       },
       async (argv) => {
-        // run_model must go through a plan. In the CLI, approval is the
-        // --approve flag on submit_media_generation, which anything with a
-        // shell can type: it stops accidents, not a determined agent. A
-        // human-only approval step and credit caps are roadmap step 4. (The
-        // older per-model commands keep upstream's direct behaviour until then.)
+        // Every paid command goes through a plan (prepare, a person's
+        // approval, submit) unless the person who runs the CLI opts out.
         if (
-          tool.category === "catalog" &&
+          tool.category !== "utility" &&
           process.env.KIE_AI_ALLOW_DIRECT_GENERATION !== "true"
         ) {
           process.stdout.write(
@@ -149,7 +176,7 @@ function build() {
               {
                 success: false,
                 tool: tool.name,
-                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> --approve <id>. Set KIE_AI_ALLOW_DIRECT_GENERATION=true to skip the plan.`,
+                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> in a terminal, where you approve by typing the code it shows.`,
               },
               null,
               2,
@@ -166,7 +193,10 @@ function build() {
             argv as unknown as {
               planId?: unknown;
               approve?: unknown;
+              acceptUnknownPrice?: unknown;
             },
+            ctx.spendPolicy ?? DEFAULT_SPEND_POLICY,
+            terminalIO(),
           );
         }
         await runTool(tool, props, argv as Record<string, unknown>, ctx);
