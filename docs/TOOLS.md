@@ -81,8 +81,9 @@ Generate images using GPT Image 2 (text-to-image and image-to-image with up to 1
 | --- | --- | --- | --- |
 | `prompt` | string | yes | Text prompt describing the desired image (max 20000 characters) |
 | `input_urls` | array | no | Array of up to 16 image URLs for image-to-image mode. Omit for text-to-image. |
-| `aspect_ratio` | `auto` / `1:1` / `9:16` / `16:9` / `4:3` / `3:4` | no | Image aspect ratio (default: `"auto"`) |
+| `aspect_ratio` | `auto` / `1:1` / `3:2` / `2:3` / `4:3` / `3:4` / `5:4` / `4:5` / `16:9` / `9:16` / `2:1` / `1:2` / `3:1` / `1:3` / `21:9` / `9:21` | no | Image aspect ratio (default: `"auto"`) |
 | `resolution` | `1K` / `2K` / `4K` | no | Output resolution (default: `"1K"`) |
+| `background` | `transparent` / `opaque` / `auto` | no | Background, 1K only: transparent gives a cut-out PNG (e.g. a product with no background) |
 | `callBackUrl` | string | no | Optional: URL for task completion notifications (uses KIE_AI_CALLBACK_URL env var if not provided) |
 
 ### ideogram_reframe
@@ -327,7 +328,7 @@ Generate AI lip-sync talking videos using MeiGen-AI InfiniTalk. Transforms portr
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `image_url` | string | yes | URL of the portrait image to animate (JPEG, PNG, WEBP, max 10MB) |
-| `audio_url` | string | yes | URL of the audio file for lip sync (MPEG, WAV, AAC, MP4, OGG, max 10MB) |
+| `audio_url` | string | yes | URL of the audio file for lip sync (MP3 recommended: kie.ai rejected WAV with an immediate error in testing on 2026-09-29; send MP3, 44.1 kHz stereo; max 10MB) |
 | `prompt` | string | yes | Text prompt to guide video generation (e.g., 'A young woman talking on a podcast') |
 | `resolution` | `480p` / `720p` | no | Video resolution: 480p (faster, cheaper) or 720p (higher quality) (default: `"480p"`) |
 | `seed` | integer | no | Random seed for reproducibility (10000-1000000) |
@@ -409,8 +410,11 @@ Generate professional-quality videos using Google's Veo3 API
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `prompt` | string | yes | Text prompt describing desired video content |
-| `imageUrls` | array | no | Image URLs for image-to-video generation: 1 image (video unfolds around it) or 2 images (first=start frame, second=end frame) |
-| `model` | `veo3` / `veo3_fast` | no | Model type: veo3 (quality) or veo3_fast (cost-efficient) (default: `"veo3"`) |
+| `imageUrls` | array | no | Image URLs: 1 image (video unfolds around it), 2 images (first and last frame), or 1-3 reference images with generationType REFERENCE_2_VIDEO (veo3_fast and veo3_lite only) |
+| `model` | `veo3` / `veo3_fast` / `veo3_lite` | no | Veo 3.1 tier: veo3 (quality), veo3_fast, or veo3_lite (cheapest: 30 credits at 720p, 35 at 1080p per clip up to 8 s) (default: `"veo3"`) |
+| `generationType` | `TEXT_2_VIDEO` / `FIRST_AND_LAST_FRAMES_2_VIDEO` / `REFERENCE_2_VIDEO` | no | Optional mode; when omitted kie.ai chooses from whether imageUrls are given |
+| `resolution` | `720p` / `1080p` / `4k` | no | Output resolution (720p is cheapest) |
+| `duration` | any | no | Clip length in seconds: 4, 6 or 8 |
 | `watermark` | string | no | Watermark text to add to video |
 | `aspectRatio` | `16:9` / `9:16` / `Auto` | no | Video aspect ratio (16:9 supports 1080P) (default: `"16:9"`) |
 | `seeds` | integer | no | Random seed for consistent results |

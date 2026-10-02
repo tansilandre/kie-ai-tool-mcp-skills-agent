@@ -145,6 +145,61 @@ async function readResponseBytes(
   return bytes;
 }
 
+/**
+ * Veo (legacy endpoint) and Midjourney report progress as `successFlag`
+ * (0 running, 1 done, 2 or 3 failed) instead of the unified `state`, and put
+ * results in `response.resultUrls` or `resultInfoJson.resultUrls[].resultUrl`.
+ * Rewrites them into the unified shape so one status parser handles every
+ * model; without it their tasks never left "pending".
+ */
+export function normalizeSuccessFlag(
+  response: KieAiResponse<any>,
+): KieAiResponse<any> {
+  const data = response?.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return response;
+  if (typeof data.state === "string" || typeof data.successFlag !== "number") {
+    return response;
+  }
+  const normalized: Record<string, unknown> = { ...data };
+  const flag = data.successFlag as number;
+  normalized.state =
+    flag === 1 ? "success" : flag === 2 || flag === 3 ? "fail" : "generating";
+  if (flag === 2 || flag === 3) {
+    normalized.failMsg =
+      data.failMsg ?? data.errorMessage ?? `successFlag ${flag}`;
+  }
+  const info =
+    data.resultInfoJson && typeof data.resultInfoJson === "object"
+      ? (data.resultInfoJson as Record<string, unknown>)
+      : undefined;
+  const raw =
+    (data.response as Record<string, unknown> | undefined)?.resultUrls ??
+    info?.resultUrls ??
+    data.resultUrls;
+  const list = typeof raw === "string" ? safeJson(raw) : raw;
+  if (Array.isArray(list)) {
+    const urls = list
+      .map((entry) =>
+        typeof entry === "string"
+          ? entry
+          : typeof (entry as { resultUrl?: unknown })?.resultUrl === "string"
+            ? (entry as { resultUrl: string }).resultUrl
+            : undefined,
+      )
+      .filter((url): url is string => Boolean(url));
+    normalized.resultJson = JSON.stringify({ resultUrls: urls });
+  }
+  return { ...response, data: normalized };
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 export class KieAiClient {
   private config: KieAiConfig;
 
@@ -455,7 +510,15 @@ export class KieAiClient {
   async generateVeo3Video(
     request: Veo3GenerateRequest,
   ): Promise<KieAiResponse<TaskResponse>> {
-    return this.makeRequest<TaskResponse>("/veo/generate", "POST", request);
+    // kie.ai's legacy Veo endpoint reads `aspect_ratio` (snake case); the
+    // camel-case `aspectRatio` this tool's schema uses was silently ignored,
+    // so every request came back 16:9. Other fields keep their documented
+    // names (docs.kie.ai/old-model/veo3-api/generate-veo-3-video).
+    const { aspectRatio, ...rest } = request;
+    return this.makeRequest<TaskResponse>("/veo/generate", "POST", {
+      ...rest,
+      ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
+    });
   }
 
   async getTaskStatus(
@@ -464,7 +527,9 @@ export class KieAiClient {
   ): Promise<KieAiResponse<any>> {
     // Use api_type to determine correct endpoint, with fallback strategy
     if (apiType === "veo3") {
-      return this.makeRequest<any>(`/veo/record-info?taskId=${taskId}`, "GET");
+      return normalizeSuccessFlag(
+        await this.makeRequest<any>(`/veo/record-info?taskId=${taskId}`, "GET"),
+      );
     } else if (apiType?.startsWith("market:")) {
       return this.makeRequest<any>(`/jobs/recordInfo?taskId=${taskId}`, "GET");
     } else if (
@@ -501,12 +566,11 @@ export class KieAiClient {
     ) {
       return this.makeRequest<any>(`/jobs/recordInfo?taskId=${taskId}`, "GET");
     } else if (apiType === "runway-aleph-video") {
-      return this.makeRequest<any>(
-        `/api/v1/aleph/record-info?taskId=${taskId}`,
-        "GET",
-      );
+      return this.makeRequest<any>(`/jobs/recordInfo?taskId=${taskId}`, "GET");
     } else if (apiType === "midjourney") {
-      return this.makeRequest<any>(`/mj/record-info?taskId=${taskId}`, "GET");
+      return normalizeSuccessFlag(
+        await this.makeRequest<any>(`/mj/record-info?taskId=${taskId}`, "GET"),
+      );
     } else if (apiType === "flux-kontext-image") {
       return this.makeRequest<any>(
         `/flux/kontext/record-info?taskId=${taskId}`,
@@ -667,22 +731,20 @@ export class KieAiClient {
   async generateRunwayAlephVideo(
     request: RunwayAlephVideoRequest,
   ): Promise<KieAiResponse<TaskResponse>> {
-    const jobRequest = {
-      prompt: request.prompt,
-      videoUrl: request.videoUrl,
-      waterMark: request.waterMark || "",
-      uploadCn: request.uploadCn || false,
-      aspectRatio: request.aspectRatio || "16:9",
-      ...(request.seed !== undefined && { seed: request.seed }),
-      ...(request.referenceImage && { referenceImage: request.referenceImage }),
+    // Aleph moved to the unified task API as `runway/gen4-aleph`
+    // (docs.kie.ai/runway-api/generate-aleph-video). The old client posted
+    // to a doubled /api/v1/api/v1/aleph path with camel-case fields.
+    // aspectRatio, seed and referenceImage are no longer in kie.ai's schema.
+    return this.makeRequest<TaskResponse>("/jobs/createTask", "POST", {
+      model: "runway/gen4-aleph",
+      input: {
+        prompt: request.prompt,
+        video_url: request.videoUrl,
+        ...(request.waterMark ? { watermark: request.waterMark } : {}),
+        ...(request.uploadCn ? { upload_cn: true } : {}),
+      },
       callBackUrl: this.callbackUrl(request.callBackUrl),
-    };
-
-    return this.makeRequest<TaskResponse>(
-      "/api/v1/aleph/generate",
-      "POST",
-      jobRequest,
-    );
+    });
   }
 
   async generateWanVideo(
@@ -1031,6 +1093,7 @@ export class KieAiClient {
     if (hasInputUrls) input.input_urls = request.input_urls;
     if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;
     if (request.resolution) input.resolution = request.resolution;
+    if (request.background) input.background = request.background;
 
     const jobRequest = {
       model,

@@ -454,7 +454,7 @@ describe("media planning", () => {
           entry.verifiedAt && entry.sourceFingerprint && entry.sourceUrl,
       ),
     ).toBe(true);
-    expect(RATE_CARD).toHaveLength(2);
+    expect(RATE_CARD).toHaveLength(3);
 
     const plan = prepareGenerationPlan(
       [

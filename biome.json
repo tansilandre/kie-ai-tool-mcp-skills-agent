@@ -14,8 +14,7 @@
       "!**/bundle",
       "!package-lock.json",
       "!.mcp.json",
-      "!packages/core/src/pricing/evidence-manifest.json",
-      "!packages/mcp/test/listtools.baseline.json"
+      "!packages/core/src/pricing/evidence-manifest.json"
     ]
   },
   "formatter": {

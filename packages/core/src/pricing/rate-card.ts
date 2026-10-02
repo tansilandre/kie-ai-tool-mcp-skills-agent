@@ -42,6 +42,23 @@ export const RATE_CARD: RateCardEntry[] = [
     credits: () => 4,
   },
   {
+    toolName: "veo3_generate_video",
+    scope: "veo3_lite",
+    name: "Veo 3.1 Lite, one clip up to 8 s",
+    sourceUrl: "https://kie.ai/pricing",
+    sourceFingerprint:
+      "kie-pricing-2026-10-02:veo-3-1-lite:720p-30-1080p-35-per-video",
+    verifiedAt: "2026-10-02",
+    // Charged exactly this by balance drop on the legacy endpoint
+    // (2026-09-28: 30 at 720p, 35 at 1080p, 5 of 5 clips).
+    matches: (args, model) =>
+      model === "veo3_lite" &&
+      (args.resolution === undefined ||
+        args.resolution === "720p" ||
+        args.resolution === "1080p"),
+    credits: (args) => (args.resolution === "1080p" ? 35 : 30),
+  },
+  {
     toolName: "hailuo_video",
     scope: "reference-to-video",
     name: "MiniMax H3 reference-to-video at 768p",

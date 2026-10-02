@@ -170,6 +170,35 @@ async function readResponseBytes(response, maxBytes) {
   }
   return bytes;
 }
+function normalizeSuccessFlag(response) {
+  const data = response?.data;
+  if (!data || typeof data !== "object" || Array.isArray(data))
+    return response;
+  if (typeof data.state === "string" || typeof data.successFlag !== "number") {
+    return response;
+  }
+  const normalized = { ...data };
+  const flag = data.successFlag;
+  normalized.state = flag === 1 ? "success" : flag === 2 || flag === 3 ? "fail" : "generating";
+  if (flag === 2 || flag === 3) {
+    normalized.failMsg = data.failMsg ?? data.errorMessage ?? `successFlag ${flag}`;
+  }
+  const info = data.resultInfoJson && typeof data.resultInfoJson === "object" ? data.resultInfoJson : void 0;
+  const raw = data.response?.resultUrls ?? info?.resultUrls ?? data.resultUrls;
+  const list = typeof raw === "string" ? safeJson(raw) : raw;
+  if (Array.isArray(list)) {
+    const urls = list.map((entry) => typeof entry === "string" ? entry : typeof entry?.resultUrl === "string" ? entry.resultUrl : void 0).filter((url2) => Boolean(url2));
+    normalized.resultJson = JSON.stringify({ resultUrls: urls });
+  }
+  return { ...response, data: normalized };
+}
+function safeJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return void 0;
+  }
+}
 var KieAiClient = class {
   config;
   constructor(config2) {
@@ -369,11 +398,15 @@ var KieAiClient = class {
     return this.makeRequest("/jobs/createTask", "POST", jobRequest);
   }
   async generateVeo3Video(request) {
-    return this.makeRequest("/veo/generate", "POST", request);
+    const { aspectRatio, ...rest } = request;
+    return this.makeRequest("/veo/generate", "POST", {
+      ...rest,
+      ...aspectRatio ? { aspect_ratio: aspectRatio } : {}
+    });
   }
   async getTaskStatus(taskId, apiType) {
     if (apiType === "veo3") {
-      return this.makeRequest(`/veo/record-info?taskId=${taskId}`, "GET");
+      return normalizeSuccessFlag(await this.makeRequest(`/veo/record-info?taskId=${taskId}`, "GET"));
     } else if (apiType?.startsWith("market:")) {
       return this.makeRequest(`/jobs/recordInfo?taskId=${taskId}`, "GET");
     } else if (apiType === "nano-banana" || apiType === "nano-banana-edit" || apiType === "nano-banana-image") {
@@ -383,9 +416,9 @@ var KieAiClient = class {
     } else if (apiType === "elevenlabs-tts" || apiType === "elevenlabs-sound-effects" || apiType === "bytedance-seedance-video" || apiType === "bytedance-seedream-image" || apiType === "qwen-image" || apiType === "wan-video" || apiType === "recraft-remove-background" || apiType === "ideogram-reframe" || apiType === "kling-3.0-video" || apiType === "hailuo" || apiType === "flux2-image" || apiType === "wan-animate" || apiType === "topaz-upscale" || apiType === "happyhorse-video" || apiType === "omnihuman-video" || apiType === "gemini-omni-video" || apiType === "gpt-image-2" || apiType === "z-image" || apiType === "grok-imagine") {
       return this.makeRequest(`/jobs/recordInfo?taskId=${taskId}`, "GET");
     } else if (apiType === "runway-aleph-video") {
-      return this.makeRequest(`/api/v1/aleph/record-info?taskId=${taskId}`, "GET");
+      return this.makeRequest(`/jobs/recordInfo?taskId=${taskId}`, "GET");
     } else if (apiType === "midjourney") {
-      return this.makeRequest(`/mj/record-info?taskId=${taskId}`, "GET");
+      return normalizeSuccessFlag(await this.makeRequest(`/mj/record-info?taskId=${taskId}`, "GET"));
     } else if (apiType === "flux-kontext-image") {
       return this.makeRequest(`/flux/kontext/record-info?taskId=${taskId}`, "GET");
     }
@@ -486,17 +519,16 @@ var KieAiClient = class {
     return this.makeRequest("/jobs/createTask", "POST", jobRequest);
   }
   async generateRunwayAlephVideo(request) {
-    const jobRequest = {
-      prompt: request.prompt,
-      videoUrl: request.videoUrl,
-      waterMark: request.waterMark || "",
-      uploadCn: request.uploadCn || false,
-      aspectRatio: request.aspectRatio || "16:9",
-      ...request.seed !== void 0 && { seed: request.seed },
-      ...request.referenceImage && { referenceImage: request.referenceImage },
+    return this.makeRequest("/jobs/createTask", "POST", {
+      model: "runway/gen4-aleph",
+      input: {
+        prompt: request.prompt,
+        video_url: request.videoUrl,
+        ...request.waterMark ? { watermark: request.waterMark } : {},
+        ...request.uploadCn ? { upload_cn: true } : {}
+      },
       callBackUrl: this.callbackUrl(request.callBackUrl)
-    };
-    return this.makeRequest("/api/v1/aleph/generate", "POST", jobRequest);
+    });
   }
   async generateWanVideo(request) {
     const input = {};
@@ -761,6 +793,8 @@ var KieAiClient = class {
       input.aspect_ratio = request.aspect_ratio;
     if (request.resolution)
       input.resolution = request.resolution;
+    if (request.background)
+      input.background = request.background;
     const jobRequest = {
       model,
       input,
@@ -16509,9 +16543,16 @@ var NanoBananaImageSchema = external_exports.object({
   path: []
 });
 var Veo3GenerateSchema = external_exports.object({
-  prompt: external_exports.string().min(1).max(2e3).describe("Text prompt describing desired video content"),
-  imageUrls: external_exports.array(external_exports.string().url()).min(1).max(2).optional().describe("Image URLs for image-to-video generation: 1 image (video unfolds around it) or 2 images (first=start frame, second=end frame)"),
-  model: external_exports.enum(["veo3", "veo3_fast"]).default("veo3").describe("Model type: veo3 (quality) or veo3_fast (cost-efficient)"),
+  prompt: external_exports.string().min(1).max(2e4).describe("Text prompt describing desired video content"),
+  imageUrls: external_exports.array(external_exports.string().url()).min(1).max(3).optional().describe("Image URLs: 1 image (video unfolds around it), 2 images (first and last frame), or 1-3 reference images with generationType REFERENCE_2_VIDEO (veo3_fast and veo3_lite only)"),
+  model: external_exports.enum(["veo3", "veo3_fast", "veo3_lite"]).default("veo3").describe("Veo 3.1 tier: veo3 (quality), veo3_fast, or veo3_lite (cheapest: 30 credits at 720p, 35 at 1080p per clip up to 8 s)"),
+  generationType: external_exports.enum([
+    "TEXT_2_VIDEO",
+    "FIRST_AND_LAST_FRAMES_2_VIDEO",
+    "REFERENCE_2_VIDEO"
+  ]).optional().describe("Optional mode; when omitted kie.ai chooses from whether imageUrls are given"),
+  resolution: external_exports.enum(["720p", "1080p", "4k"]).optional().describe("Output resolution (720p is cheapest)"),
+  duration: external_exports.union([external_exports.literal(4), external_exports.literal(6), external_exports.literal(8)]).optional().describe("Clip length in seconds: 4, 6 or 8"),
   watermark: external_exports.string().max(100).optional().describe("Watermark text to add to video"),
   aspectRatio: external_exports.enum(["16:9", "9:16", "Auto"]).default("16:9").describe("Video aspect ratio (16:9 supports 1080P)"),
   seeds: external_exports.number().int().min(1e4).max(99999).optional().describe("Random seed for consistent results"),
@@ -16868,7 +16909,7 @@ var GrokImagineSchema = external_exports.object({
 });
 var InfiniTalkSchema = external_exports.object({
   image_url: external_exports.string().url().describe("URL of the portrait image to animate (JPEG, PNG, WEBP, max 10MB)"),
-  audio_url: external_exports.string().url().describe("URL of the audio file for lip sync (MPEG, WAV, AAC, MP4, OGG, max 10MB)"),
+  audio_url: external_exports.string().url().describe("URL of the audio file for lip sync (MP3 recommended: kie.ai rejected WAV with an immediate error in testing on 2026-09-29; send MP3, 44.1 kHz stereo; max 10MB)"),
   prompt: external_exports.string().min(1).max(1500).describe("Text prompt to guide video generation (e.g., 'A young woman talking on a podcast')"),
   resolution: external_exports.enum(["480p", "720p"]).default("480p").optional().describe("Video resolution: 480p (faster, cheaper) or 720p (higher quality)"),
   seed: external_exports.number().int().min(1e4).max(1e6).optional().describe("Random seed for reproducibility (10000-1000000)"),
@@ -17028,8 +17069,26 @@ var MidjourneyGenerateSchema = external_exports.object({
 var GptImage2Schema = external_exports.object({
   prompt: external_exports.string().min(1).max(2e4).describe("Text prompt describing the desired image (max 20000 characters)"),
   input_urls: external_exports.array(external_exports.string().url()).max(16).optional().describe("Array of up to 16 image URLs for image-to-image mode. Omit for text-to-image."),
-  aspect_ratio: external_exports.enum(["auto", "1:1", "9:16", "16:9", "4:3", "3:4"]).default("auto").optional().describe("Image aspect ratio"),
+  aspect_ratio: external_exports.enum([
+    "auto",
+    "1:1",
+    "3:2",
+    "2:3",
+    "4:3",
+    "3:4",
+    "5:4",
+    "4:5",
+    "16:9",
+    "9:16",
+    "2:1",
+    "1:2",
+    "3:1",
+    "1:3",
+    "21:9",
+    "9:21"
+  ]).default("auto").optional().describe("Image aspect ratio"),
   resolution: external_exports.enum(["1K", "2K", "4K"]).default("1K").optional().describe("Output resolution"),
+  background: external_exports.enum(["transparent", "opaque", "auto"]).optional().describe("Background, 1K only: transparent gives a cut-out PNG (e.g. a product with no background)"),
   callBackUrl: external_exports.string().url().optional().describe("Optional: URL for task completion notifications (uses KIE_AI_CALLBACK_URL env var if not provided)")
 });
 var FluxKontextImageSchema = external_exports.object({
@@ -19730,6 +19789,18 @@ var RATE_CARD = [
     credits: () => 4
   },
   {
+    toolName: "veo3_generate_video",
+    scope: "veo3_lite",
+    name: "Veo 3.1 Lite, one clip up to 8 s",
+    sourceUrl: "https://kie.ai/pricing",
+    sourceFingerprint: "kie-pricing-2026-10-02:veo-3-1-lite:720p-30-1080p-35-per-video",
+    verifiedAt: "2026-10-02",
+    // Charged exactly this by balance drop on the legacy endpoint
+    // (2026-09-28: 30 at 720p, 35 at 1080p, 5 of 5 clips).
+    matches: (args, model) => model === "veo3_lite" && (args.resolution === void 0 || args.resolution === "720p" || args.resolution === "1080p"),
+    credits: (args) => args.resolution === "1080p" ? 35 : 30
+  },
+  {
     toolName: "hailuo_video",
     scope: "reference-to-video",
     name: "MiniMax H3 reference-to-video at 768p",
@@ -19762,7 +19833,9 @@ var POLICY_DEFAULTS = {
   "image-fast": { model: "nano-banana-2-lite", resolution: "1K" },
   "seedance-safe": { resolution: "720p", duration: 5, generate_audio: false },
   "kling-safe": { mode: "std", duration: "5", sound: false },
-  "veo-fast": { model: "veo3_fast" },
+  // Cheapest Veo 3.1 tier at its cheapest resolution, unless the request
+  // chooses otherwise.
+  "veo-fast": { model: "veo3_lite", resolution: "720p" },
   "hailuo-safe": { duration: 5, aspectRatio: "16:9" }
 };
 function stableJson(value) {

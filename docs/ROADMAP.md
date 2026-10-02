@@ -70,7 +70,8 @@ cheapest settings only (gpt-image-2 at 1K, Veo 3.1 Lite at 720p), as Andre allow
    rules, content-filter 500s, the 20-minute task limit, key model allowlists).
 6. **Everywhere.** Codex and Cursor plugin manifests, `npx skills add` support, `install.sh` and
    `install.ps1`, config snippets for Claude Desktop and WorkBuddy, and a Windows test.
-7. **Fixes.** Veo and Midjourney status, Runway Aleph URL, Veo 3.1 Lite and Seedance 1.5 Pro.
+7. ✅ **Fixes.** (PR #6: Veo/Midjourney status, Veo aspect ratio, Aleph, Veo 3.1 Lite, GPT Image 2
+   options. Seedance 1.5 Pro runs through `run_model`; stale upstream docs remain.) Veo and Midjourney status, Runway Aleph URL, Veo 3.1 Lite and Seedance 1.5 Pro.
    Live test: one Veo 3.1 Lite 720p clip. Remove stale docs.
 8. **Later.** A standalone agent (`kie agent "make a 15 second ad"`) that runs its own loop on
    kie.ai's chat models with the same key. Publishing to npm once the package scope is reserved.
