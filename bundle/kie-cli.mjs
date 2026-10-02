@@ -191,6 +191,10 @@ var KieAiClient = class {
     parsed.pathname = path;
     return parsed.toString();
   }
+  /** False when no key was configured; tools refuse before asking for approval. */
+  hasApiKey() {
+    return Boolean(this.config.apiKey);
+  }
   requireApiKey() {
     if (!this.config.apiKey) {
       throw new KieAiRequestError(MISSING_API_KEY_MESSAGE, 401);
@@ -1590,15 +1594,21 @@ function loadSqlite() {
   try {
     return require2("node:sqlite");
   } catch (error51) {
-    throw new Error(`kie-ai-tool needs Node.js 22.13 or newer (found ${process.version}) for its built-in SQLite task store. ${error51 instanceof Error ? error51.message : ""}`.trim());
+    throw new Error(`Could not load Node's built-in SQLite (node:sqlite), which kie-ai-tool needs for its task store. It requires Node.js 22.13 or newer without --no-experimental-sqlite; this is ${process.version}. ${String(error51?.message ?? "")}`.trim());
   } finally {
     process.emitWarning = emit;
   }
 }
 function addColumnIfMissing(db, table, column, type) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all();
-  if (!columns.some((existing) => existing.name === column)) {
+  if (columns.some((existing) => existing.name === column))
+    return;
+  try {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  } catch (error51) {
+    const message = String(error51?.message ?? error51);
+    if (!/duplicate column name/i.test(message))
+      throw error51;
   }
 }
 var TaskDatabase = class {
@@ -19663,6 +19673,9 @@ var prepareMediaGenerationTool = {
   async run(args, ctx) {
     try {
       const request = PrepareMediaGenerationSchema.parse(args);
+      if (typeof ctx.client.hasApiKey === "function" && !ctx.client.hasApiKey()) {
+        throw new Error(MISSING_API_KEY_MESSAGE);
+      }
       const tools = new Map(request.items.map((item) => [item.tool, ctx.getTool(item.tool)]).filter((entry) => entry[1] !== void 0));
       const itemDetails = await catalogDetails(request.items, ctx);
       const plan = prepareGenerationPlan(request.items, tools, {
@@ -20141,21 +20154,34 @@ var submitMediaGenerationTool = {
           };
         }
       });
-      if (results.some((result) => result.error)) {
-        await ctx.db.failGenerationPlan(planId, results);
-        throw new Error("One or more plan items failed.");
+      const failed = results.some((result) => result.error);
+      let recordWarning;
+      try {
+        if (failed)
+          await ctx.db.failGenerationPlan(planId, results);
+        else
+          await ctx.db.finishGenerationPlan(planId, results);
+      } catch (error51) {
+        recordWarning = `The tasks below were sent to kie.ai, but saving the outcome locally failed (${error51 instanceof Error ? error51.message : String(error51)}). Do not submit this work again; follow the task IDs below.`;
       }
-      await ctx.db.finishGenerationPlan(planId, results);
+      const created = results.filter((result) => result.taskId).length;
+      const body = {
+        success: !failed,
+        planId,
+        requestHash: stored.requestHash,
+        results,
+        ...failed ? {
+          error: "One or more plan items failed.",
+          note: created > 0 ? `${created} task(s) were created and will be charged. Wait for them with wait_for_task; do not resubmit them. Only the failed items need a new plan.` : "No task was created, so nothing was charged."
+        } : {},
+        ...recordWarning ? { warning: recordWarning } : {}
+      };
       return {
+        ...failed ? { isError: true } : {},
         content: [
           {
             type: "text",
-            text: JSON.stringify({
-              success: true,
-              planId,
-              requestHash: stored.requestHash,
-              results
-            }, null, 2)
+            text: JSON.stringify(body, null, 2)
           }
         ],
         structuredContent: {

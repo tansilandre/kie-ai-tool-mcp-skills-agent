@@ -188,6 +188,11 @@ export class KieAiClient {
     return parsed.toString();
   }
 
+  /** False when no key was configured; tools refuse before asking for approval. */
+  hasApiKey(): boolean {
+    return Boolean(this.config.apiKey);
+  }
+
   private requireApiKey(): void {
     if (!this.config.apiKey) {
       throw new KieAiRequestError(MISSING_API_KEY_MESSAGE, 401);

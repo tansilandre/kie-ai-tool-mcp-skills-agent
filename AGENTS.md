@@ -123,7 +123,7 @@ packages/cli    @kie-ai-tool/cli            (bin: kie-cli)
 - A tool is one `ToolDef { name, description, category, schema, run(args, ctx) }`.
 - `run()` returns the MCP content envelope; the MCP server returns it verbatim, and the CLI unwraps `content[0].text`.
 - MCP `inputSchema` and CLI flags are derived from the tool's Zod schema via `toInputJsonSchema`. Zod is the only schema definition.
-- esbuild bundles `core` into each publishable package (`sqlite3` is external). `core` is never published.
+- esbuild bundles `core` into each publishable package; `npm run bundle:plugin` also inlines every dependency into `bundle/`. The task store uses Node's built-in `node:sqlite`, so there is no native module. `core` is never published.
 - Build: `npm run build` (all), `npm run bundle` (publish bundles), `npm test` (core Jest), `npm run typecheck`.
 
 ## Adding New Tools
@@ -158,7 +158,7 @@ Adding a model is one tool file plus one client method. The MCP server and CLI d
 ## Database & Task Management
 
 ### **Database Architecture**
-- **SQLite Database**: Local persistent storage using `sqlite3` package
+- **SQLite Database**: Local persistent storage using Node's built-in `node:sqlite` (Node 22.13+)
 - **TaskDatabase Class**: Wrapper class providing Promise-based database operations
 - **Auto-initialization**: Creates tables and indexes on first run
 - **Thread Safety**: Uses SQLite serialization for concurrent access

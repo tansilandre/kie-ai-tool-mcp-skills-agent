@@ -27,7 +27,7 @@ function loadSqlite(): typeof import("node:sqlite") {
     return require("node:sqlite") as typeof import("node:sqlite");
   } catch (error) {
     throw new Error(
-      `kie-ai-tool needs Node.js 22.13 or newer (found ${process.version}) for its built-in SQLite task store. ${error instanceof Error ? error.message : ""}`.trim(),
+      `Could not load Node's built-in SQLite (node:sqlite), which kie-ai-tool needs for its task store. It requires Node.js 22.13 or newer without --no-experimental-sqlite; this is ${process.version}. ${String((error as { message?: unknown })?.message ?? "")}`.trim(),
     );
   } finally {
     process.emitWarning = emit;
@@ -44,8 +44,15 @@ function addColumnIfMissing(
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
     name: string;
   }>;
-  if (!columns.some((existing) => existing.name === column)) {
+  if (columns.some((existing) => existing.name === column)) return;
+  try {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  } catch (error) {
+    // Another process opening the same old database may add it between our
+    // check and our ALTER. Read the message rather than `instanceof Error`:
+    // errors from node:sqlite can come from another realm (e.g. under Jest).
+    const message = String((error as { message?: unknown })?.message ?? error);
+    if (!/duplicate column name/i.test(message)) throw error;
   }
 }
 

@@ -48,6 +48,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `allowExtraFields` is set, and refuses a model whose schema has no input
   definition.
 
+### Fixed
+- `submit_media_generation` never hides paid tasks. When one item of a plan failed, it
+  threw "One or more plan items failed." and dropped the task IDs of the items kie.ai had
+  accepted and was charging for; the generic "try again" advice invited paying twice. It now
+  returns every result, says how many tasks were created and not to resubmit them, and turns
+  a local database error after submission into a warning instead of a lost result.
+- `prepare_media_generation` refuses when no API key is set, before asking anyone to
+  approve a price for a plan that can't run.
+- Several processes opening a pre-4.0 database at once no longer crash on the column
+  migration.
+
 ### Security
 - The MCP approval message flattens agent- and kie.ai-supplied text to one line,
   so a field name or price text can't fake extra lines such as a second "Price:".
