@@ -1876,10 +1876,13 @@ var DEFAULT_SPEND_POLICY = {
   autoApproveCredits: 0
 };
 function envSetting(name) {
-  const raw = process.env[name]?.trim();
-  if (!raw || /^\$\{[^}]*\}$/.test(raw))
-    return void 0;
-  return raw;
+  const pluginName = name.startsWith("KIE_AI_") ? `KIE_AI_PLUGIN_${name.slice("KIE_AI_".length)}` : void 0;
+  for (const key of pluginName ? [pluginName, name] : [name]) {
+    const raw = process.env[key]?.trim();
+    if (raw && !/^\$\{[^}]*\}$/.test(raw))
+      return raw;
+  }
+  return void 0;
 }
 function numberFromEnv(name, fallback) {
   const raw = envSetting(name);

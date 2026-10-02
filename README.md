@@ -43,7 +43,7 @@ price, wait for your yes, generate, and hand back the files.
 
 ## Install
 
-You need [Node.js](https://nodejs.org) 22.13 or newer and a kie.ai API key from
+You need [Node.js](https://nodejs.org) 22.13 or newer, git, and a kie.ai API key from
 [kie.ai/api-key](https://kie.ai/api-key). Nothing else: the server is one file with no dependencies.
 
 ### Claude Code (plugin: MCP server, skills and agent in one step)
@@ -57,54 +57,67 @@ In Claude Code:
 
 Claude Code asks for your kie.ai API key and keeps it in your system's secure storage, and lets
 you pick the approval mode and the credit caps. Change them later with
-`/plugin configure kie@kie-ai-tool`. In the plugin these settings come from there, not from your
-shell (only the key falls back to `KIE_API_KEY`). If you leave it empty, the plugin uses
-`KIE_API_KEY` from the shell that started Claude Code.
+`/plugin configure kie@kie-ai-tool`. Then ask in plain words, for example *"make a 1:1 product
+photo of a white ceramic mug with GPT Image 2 at 1K and save it to ./out"*. The skills (such as
+`kie:generate-media`, `kie:image-prompts`, `kie:short-video`) and the `kie-director` agent load on
+their own; the tools appear as `mcp__plugin_kie_kie__*`.
 
-Then ask in plain words, for example *"make a 1:1 product photo of a white ceramic mug with GPT
-Image 2 at 1K and save it to ./out"*. The `kie:generate-media` skill and the `kie-director`
-agent load on their own; the tools appear as `mcp__plugin_kie_kie__*`.
+### Everything else: the installer
 
-From a terminal, the same install is:
-
-```bash
-claude plugin marketplace add tansilandre/kie-ai-tool-mcp-skills-agent
-claude plugin install kie@kie-ai-tool
-```
-
-### Any other MCP client (Claude Desktop, Cursor, Codex, WorkBuddy, …)
+macOS and Linux:
 
 ```bash
-git clone https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent
+curl -fsSL https://raw.githubusercontent.com/tansilandre/kie-ai-tool-mcp-skills-agent/main/install.sh | sh
 ```
 
-Then point the client at the bundled server, using the absolute path to your clone:
+Windows (PowerShell):
 
-```json
-{
-  "mcpServers": {
-    "kie": {
-      "command": "node",
-      "args": ["/absolute/path/to/kie-ai-tool-mcp-skills-agent/bundle/kie-mcp.mjs"],
-      "env": { "KIE_API_KEY": "your-key" }
+```powershell
+irm https://raw.githubusercontent.com/tansilandre/kie-ai-tool-mcp-skills-agent/main/install.ps1 | iex
+```
+
+It clones the toolkit into `~/.kie-ai-tool` (run it again to update), checks Node.js, and prints
+the exact setup for the AI apps it finds. Run the downloaded script with `--register`
+(`-Register` on Windows) to also install the Claude Code plugin and add the skills to Codex. It
+never asks for your key. The Windows installer has not been tested on Windows yet: please report
+problems in an issue.
+
+Or set it up by hand:
+
+- **Codex:** `codex mcp add kie --env KIE_API_KEY=<your key> --env KIE_AI_APPROVAL=chat -- node ~/.kie-ai-tool/bundle/kie-mcp.mjs`,
+  and copy the folders in `~/.kie-ai-tool/skills` to `~/.codex/skills`. (Codex can also install
+  this repo as a plugin with `codex plugin marketplace add tansilandre/kie-ai-tool-mcp-skills-agent`
+  and `codex plugin add kie@kie-ai-tool`; then set `KIE_API_KEY` in the environment Codex starts
+  from. The install is verified; a live Codex session with the plugin is not yet.)
+- **Claude Desktop, Cursor, WorkBuddy and other MCP apps:** add the server to the app's MCP
+  settings with the absolute path to your clone:
+
+  ```json
+  {
+    "mcpServers": {
+      "kie": {
+        "command": "node",
+        "args": ["/absolute/path/to/.kie-ai-tool/bundle/kie-mcp.mjs"],
+        "env": { "KIE_API_KEY": "your-key", "KIE_AI_APPROVAL": "chat" }
+      }
     }
   }
-}
-```
+  ```
 
-For Codex: `codex mcp add kie --env KIE_API_KEY=your-key --env KIE_AI_APPROVAL=chat -- node /absolute/path/to/kie-ai-tool-mcp-skills-agent/bundle/kie-mcp.mjs`.
-
-Apps without MCP approval forms need `"KIE_AI_APPROVAL": "chat"` in `env`; otherwise plans can be
-prepared but not approved.
+  On Windows the path looks like `"C:\\Users\\you\\.kie-ai-tool\\bundle\\kie-mcp.mjs"` (backslashes doubled
+  in JSON). Use `"form"` instead of `"chat"` if the app shows MCP approval forms; without them, form
+  mode can prepare plans but never approve them.
+- **Skills in other agents:** the folders in `skills/` follow the common SKILL.md layout; copy them
+  into your agent's skills folder (for example `~/.agents/skills`).
 
 ### CLI
 
 ```bash
-export KIE_API_KEY=your-key
-node bundle/kie-cli.mjs --help
-node bundle/kie-cli.mjs search_models --query veo
-node bundle/kie-cli.mjs get_model_schema --model gpt-image-2-text-to-image
-node bundle/kie-cli.mjs get_balance
+export KIE_API_KEY=your-key            # Windows PowerShell: $env:KIE_API_KEY = "your-key"
+node ~/.kie-ai-tool/bundle/kie-cli.mjs --help
+node ~/.kie-ai-tool/bundle/kie-cli.mjs search_models --query veo
+node ~/.kie-ai-tool/bundle/kie-cli.mjs get_model_schema --model gpt-image-2-text-to-image
+node ~/.kie-ai-tool/bundle/kie-cli.mjs get_balance
 ```
 
 ## How spending works

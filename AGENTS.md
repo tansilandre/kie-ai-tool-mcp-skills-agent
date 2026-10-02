@@ -42,8 +42,15 @@ in [`docs/ROADMAP.md`](docs/ROADMAP.md); read it before starting a feature.
 
 The repo root is also a Claude Code plugin and marketplace:
 
-- `.claude-plugin/plugin.json`: plugin `kie` (MCP server `kie` running `bundle/kie-mcp.mjs`, and a
-  sensitive `kie_api_key` user setting passed as `KIE_AI_API_KEY`).
+- `.claude-plugin/plugin.json`: plugin `kie` (MCP server `kie` running `bundle/kie-mcp.mjs`). Its user
+  settings reach the server as `KIE_AI_PLUGIN_*` variables (`KIE_AI_PLUGIN_API_KEY`,
+  `KIE_AI_PLUGIN_APPROVAL`, …), which win over the usual `KIE_AI_*` names when filled in; an
+  unfilled `${user_config.x}` placeholder (Codex installs the same plugin but doesn't fill them)
+  falls back to the person's own `KIE_AI_*` / `KIE_API_KEY`. Codex reads the same
+  `.claude-plugin/marketplace.json`.
+- `install.sh` / `install.ps1`: clone or update into `~/.kie-ai-tool`, check Node, print per-app setup;
+  `--register` installs the Claude Code plugin and links skills for Codex. Test `install.sh` with a
+  throwaway `HOME` and `CLAUDE_CONFIG_DIR` (and `KIE_AI_TOOL_REPO` pointing at your checkout).
 - `.claude-plugin/marketplace.json`: marketplace `kie-ai-tool`, one plugin with source `./`.
 - `skills/<name>/SKILL.md`: skills, namespaced `kie:<name>` in Claude Code.
 - `agents/<name>.md`: agents. Plugin MCP tools are named `mcp__plugin_kie_kie__<tool>`.

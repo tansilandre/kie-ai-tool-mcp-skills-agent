@@ -68,7 +68,9 @@ cheapest settings only (gpt-image-2 at 1K, Veo 3.1 Lite at 720p), as Andre allow
    video prompts, product photoshoot, YouTube thumbnail, brand kit, and a short-video / explainer
    pipeline. Plus kie.ai field notes: traps verified on the live API (upload host, Omni input
    rules, content-filter 500s, the 20-minute task limit, key model allowlists).
-6. **Everywhere.** Codex and Cursor plugin manifests, `npx skills add` support, `install.sh` and
+6. ✅ **Everywhere.** (PR #7. Verified: the macOS installer end to end, the Codex plugin install. Not
+   yet verified: `install.ps1` on Windows, and a live Codex session, because Codex's login on the
+   build machine had expired.) Codex and Cursor plugin manifests, `npx skills add` support, `install.sh` and
    `install.ps1`, config snippets for Claude Desktop and WorkBuddy, and a Windows test.
 7. ✅ **Fixes.** (PR #6: Veo/Midjourney status, Veo aspect ratio, Aleph, Veo 3.1 Lite, GPT Image 2
    options. Seedance 1.5 Pro runs through `run_model`; stale upstream docs remain.) Veo and Midjourney status, Runway Aleph URL, Veo 3.1 Lite and Seedance 1.5 Pro.

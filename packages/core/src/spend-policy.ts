@@ -30,9 +30,17 @@ export const DEFAULT_SPEND_POLICY: SpendPolicy = {
  * host never filled in (a plugin setting left as "${user_config.x}").
  */
 export function envSetting(name: string): string | undefined {
-  const raw = process.env[name]?.trim();
-  if (!raw || /^\$\{[^}]*\}$/.test(raw)) return undefined;
-  return raw;
+  // Plugin settings arrive under KIE_AI_PLUGIN_* so a host that leaves them
+  // as unfilled placeholders (Codex doesn't fill Claude Code's user_config)
+  // doesn't hide the person's own KIE_AI_* / KIE_API_KEY variables.
+  const pluginName = name.startsWith("KIE_AI_")
+    ? `KIE_AI_PLUGIN_${name.slice("KIE_AI_".length)}`
+    : undefined;
+  for (const key of pluginName ? [pluginName, name] : [name]) {
+    const raw = process.env[key]?.trim();
+    if (raw && !/^\$\{[^}]*\}$/.test(raw)) return raw;
+  }
+  return undefined;
 }
 
 function numberFromEnv(name: string, fallback: number): number {

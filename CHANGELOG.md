@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- `install.sh` (macOS, Linux) and `install.ps1` (Windows, not yet tested on Windows): clone or
+  update into `~/.kie-ai-tool`, check Node.js, print the setup for Claude Code, Codex and any MCP
+  app; `--register` installs the Claude Code plugin and adds the skills to Codex.
+- Codex: `codex plugin marketplace add tansilandre/kie-ai-tool-mcp-skills-agent` reads the same
+  marketplace, and `codex mcp add` setup is documented. README covers Claude Desktop, Cursor,
+  WorkBuddy and Windows paths.
 - Veo 3.1 Lite: `veo3_generate_video` takes `model: "veo3_lite"`, `resolution` (720p, 1080p, 4k),
   `duration` (4, 6, 8) and `generationType`, and the safe default is now Lite at 720p. Exact price
   in the rate card: 30 credits at 720p, 35 at 1080p, matching live charges.
@@ -44,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `KIE_API_KEY` is accepted as well as `KIE_AI_API_KEY`.
 
 ### Changed
+- Plugin settings reach the server as `KIE_AI_PLUGIN_*` variables, so a host that leaves them as
+  unfilled placeholders (Codex) no longer hides the person's own `KIE_API_KEY` / `KIE_AI_*`.
 - **Breaking (CLI):** every paid command, including the 28 per-model commands, now runs through a
   plan unless `KIE_AI_ALLOW_DIRECT_GENERATION=true`. `submit_media_generation` in a terminal asks
   the person to type a code; without a terminal only chat mode accepts `--approve <planId>`.

@@ -1,7 +1,7 @@
 {
   "name": "kie",
   "displayName": "kie.ai toolkit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Make images, video, music and speech with any kie.ai model: live catalog, prices and model health, a plan you approve before credits are spent, skills and a ready-made media agent.",
   "author": {
     "name": "Andre Tansil",
@@ -27,11 +27,11 @@
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/bundle/kie-mcp.mjs"],
       "env": {
-        "KIE_AI_API_KEY": "${user_config.kie_api_key}",
-        "KIE_AI_APPROVAL": "${user_config.approval_mode}",
-        "KIE_AI_MAX_CREDITS_PER_PLAN": "${user_config.max_credits_per_plan}",
-        "KIE_AI_MAX_CREDITS_PER_DAY": "${user_config.max_credits_per_day}",
-        "KIE_AI_AUTO_APPROVE_CREDITS": "${user_config.auto_approve_credits}"
+        "KIE_AI_PLUGIN_API_KEY": "${user_config.kie_api_key}",
+        "KIE_AI_PLUGIN_APPROVAL": "${user_config.approval_mode}",
+        "KIE_AI_PLUGIN_MAX_CREDITS_PER_PLAN": "${user_config.max_credits_per_plan}",
+        "KIE_AI_PLUGIN_MAX_CREDITS_PER_DAY": "${user_config.max_credits_per_day}",
+        "KIE_AI_PLUGIN_AUTO_APPROVE_CREDITS": "${user_config.auto_approve_credits}"
       }
     }
   },
