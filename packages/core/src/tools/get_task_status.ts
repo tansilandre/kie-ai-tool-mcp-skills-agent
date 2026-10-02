@@ -458,11 +458,19 @@ export const getTaskStatusTool: ToolDef<typeof GetTaskStatusSchema> = {
           fail_message: elevenlabsData.failMsg,
         };
       } else {
-        // Use original logic for other APIs
-        responseData.status = apiResponse?.data?.state || updatedTask?.status;
+        // One status vocabulary for every unified-task model: pending,
+        // processing, completed or failed, the same words wait_for_task and
+        // the polling instructions use. kie.ai's own word (waiting, queuing,
+        // generating, success, fail) stays available as provider_state.
+        if (apiResponse?.data?.state) {
+          responseData.provider_state = apiResponse.data.state;
+        }
+        responseData.status = updatedTask?.status ?? apiResponse?.data?.state;
         responseData.result_urls =
-          parsedResult?.resultUrls ||
-          (updatedTask?.result_url ? [updatedTask.result_url] : []);
+          allResultUrls.length > 0
+            ? allResultUrls
+            : parsedResult?.resultUrls ||
+              (updatedTask?.result_url ? [updatedTask.result_url] : []);
         responseData.error =
           apiResponse?.data?.failMsg || updatedTask?.error_message;
       }

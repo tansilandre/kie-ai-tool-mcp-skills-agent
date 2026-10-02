@@ -40776,8 +40776,11 @@ var getTaskStatusTool = {
           fail_message: elevenlabsData.failMsg
         };
       } else {
-        responseData.status = apiResponse?.data?.state || updatedTask?.status;
-        responseData.result_urls = parsedResult?.resultUrls || (updatedTask?.result_url ? [updatedTask.result_url] : []);
+        if (apiResponse?.data?.state) {
+          responseData.provider_state = apiResponse.data.state;
+        }
+        responseData.status = updatedTask?.status ?? apiResponse?.data?.state;
+        responseData.result_urls = allResultUrls.length > 0 ? allResultUrls : parsedResult?.resultUrls || (updatedTask?.result_url ? [updatedTask.result_url] : []);
         responseData.error = apiResponse?.data?.failMsg || updatedTask?.error_message;
       }
       return {
@@ -43221,6 +43224,10 @@ var waitForTaskTool = {
                   status: "completed",
                   elapsed_seconds: elapsed(),
                   result_urls,
+                  // The credits kie.ai actually charged, when it reports
+                  // them: agents compare this with the plan's quote.
+                  ...typeof details?.creditsConsumed === "number" ? { creditsConsumed: details.creditsConsumed } : typeof task.credits_consumed === "number" ? { creditsConsumed: task.credits_consumed } : {},
+                  ...details?.result_object !== void 0 ? { result_object: details.result_object } : {},
                   details,
                   message: "Generation completed"
                 }, null, 2)

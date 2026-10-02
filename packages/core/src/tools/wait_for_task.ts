@@ -174,6 +174,16 @@ export const waitForTaskTool: ToolDef<typeof WaitForTaskSchema> = {
                     status: "completed",
                     elapsed_seconds: elapsed(),
                     result_urls,
+                    // The credits kie.ai actually charged, when it reports
+                    // them: agents compare this with the plan's quote.
+                    ...(typeof details?.creditsConsumed === "number"
+                      ? { creditsConsumed: details.creditsConsumed }
+                      : typeof task.credits_consumed === "number"
+                        ? { creditsConsumed: task.credits_consumed }
+                        : {}),
+                    ...(details?.result_object !== undefined
+                      ? { result_object: details.result_object }
+                      : {}),
                     details,
                     message: "Generation completed",
                   },
