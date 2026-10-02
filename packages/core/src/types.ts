@@ -116,20 +116,40 @@ export const Veo3GenerateSchema = z.object({
   prompt: z
     .string()
     .min(1)
-    .max(2000)
+    .max(20000)
     .describe("Text prompt describing desired video content"),
   imageUrls: z
     .array(z.string().url())
     .min(1)
-    .max(2)
+    .max(3)
     .optional()
     .describe(
-      "Image URLs for image-to-video generation: 1 image (video unfolds around it) or 2 images (first=start frame, second=end frame)",
+      "Image URLs: 1 image (video unfolds around it), 2 images (first and last frame), or 1-3 reference images with generationType REFERENCE_2_VIDEO (veo3_fast and veo3_lite only)",
     ),
   model: z
-    .enum(["veo3", "veo3_fast"])
+    .enum(["veo3", "veo3_fast", "veo3_lite"])
     .default("veo3")
-    .describe("Model type: veo3 (quality) or veo3_fast (cost-efficient)"),
+    .describe(
+      "Veo 3.1 tier: veo3 (quality), veo3_fast, or veo3_lite (cheapest: 30 credits at 720p, 35 at 1080p per clip up to 8 s)",
+    ),
+  generationType: z
+    .enum([
+      "TEXT_2_VIDEO",
+      "FIRST_AND_LAST_FRAMES_2_VIDEO",
+      "REFERENCE_2_VIDEO",
+    ])
+    .optional()
+    .describe(
+      "Optional mode; when omitted kie.ai chooses from whether imageUrls are given",
+    ),
+  resolution: z
+    .enum(["720p", "1080p", "4k"])
+    .optional()
+    .describe("Output resolution (720p is cheapest)"),
+  duration: z
+    .union([z.literal(4), z.literal(6), z.literal(8)])
+    .optional()
+    .describe("Clip length in seconds: 4, 6 or 8"),
   watermark: z
     .string()
     .max(100)
@@ -1055,7 +1075,7 @@ export const InfiniTalkSchema = z.object({
     .string()
     .url()
     .describe(
-      "URL of the audio file for lip sync (MPEG, WAV, AAC, MP4, OGG, max 10MB)",
+      "URL of the audio file for lip sync (MP3 recommended: kie.ai rejected WAV with an immediate error in testing on 2026-09-29; send MP3, 44.1 kHz stereo; max 10MB)",
     ),
   prompt: z
     .string()
@@ -1536,7 +1556,24 @@ export const GptImage2Schema = z.object({
       "Array of up to 16 image URLs for image-to-image mode. Omit for text-to-image.",
     ),
   aspect_ratio: z
-    .enum(["auto", "1:1", "9:16", "16:9", "4:3", "3:4"])
+    .enum([
+      "auto",
+      "1:1",
+      "3:2",
+      "2:3",
+      "4:3",
+      "3:4",
+      "5:4",
+      "4:5",
+      "16:9",
+      "9:16",
+      "2:1",
+      "1:2",
+      "3:1",
+      "1:3",
+      "21:9",
+      "9:21",
+    ])
     .default("auto")
     .optional()
     .describe("Image aspect ratio"),
@@ -1545,6 +1582,12 @@ export const GptImage2Schema = z.object({
     .default("1K")
     .optional()
     .describe("Output resolution"),
+  background: z
+    .enum(["transparent", "opaque", "auto"])
+    .optional()
+    .describe(
+      "Background, 1K only: transparent gives a cut-out PNG (e.g. a product with no background)",
+    ),
   callBackUrl: z
     .string()
     .url()

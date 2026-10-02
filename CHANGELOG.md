@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Veo 3.1 Lite: `veo3_generate_video` takes `model: "veo3_lite"`, `resolution` (720p, 1080p, 4k),
+  `duration` (4, 6, 8) and `generationType`, and the safe default is now Lite at 720p. Exact price
+  in the rate card: 30 credits at 720p, 35 at 1080p, matching live charges.
+- `gpt_image_2` accepts all 16 aspect ratios GPT Image 2 supports and `background` (transparent
+  cut-outs at 1K).
 - Spend controls (design: `docs/design/spend-controls.md`). Approval modes in
   `KIE_AI_APPROVAL`: `form` (default: the app's approval dialog, or a code typed in a terminal
   for the CLI), `chat` (the agent relays the person's yes through the new
@@ -69,6 +74,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   definition.
 
 ### Fixed
+- **Veo and Midjourney tasks never finished.** Their status endpoints report `successFlag`
+  (0 running, 1 done, 2/3 failed) instead of `state`, so `get_task_status` and `wait_for_task`
+  stayed "pending" forever. Responses are normalized in the client now. Verified live: a Veo 3.1
+  Lite clip completed in 85 s.
+- **Veo ignored the aspect ratio.** The legacy Veo endpoint reads `aspect_ratio`; the tool sent
+  `aspectRatio`, so every clip came back 16:9. Verified live: a 9:16 request returned 720×1280.
+- **Runway Aleph could not run.** Its client posted to a doubled `/api/v1/api/v1/aleph` path with
+  old field names. It now uses kie.ai's unified task API (`runway/gen4-aleph`). Not live-tested.
+- InfiniTalk's audio field no longer suggests WAV, which kie.ai rejected in testing.
 - `submit_media_generation` never hides paid tasks. When one item of a plan failed, it
   threw "One or more plan items failed." and dropped the task IDs of the items kie.ai had
   accepted and was charging for; the generic "try again" advice invited paying twice. It now

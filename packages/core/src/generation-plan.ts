@@ -35,7 +35,9 @@ const POLICY_DEFAULTS: Record<string, Record<string, unknown>> = {
   "image-fast": { model: "nano-banana-2-lite", resolution: "1K" },
   "seedance-safe": { resolution: "720p", duration: 5, generate_audio: false },
   "kling-safe": { mode: "std", duration: "5", sound: false },
-  "veo-fast": { model: "veo3_fast" },
+  // Cheapest Veo 3.1 tier at its cheapest resolution, unless the request
+  // chooses otherwise.
+  "veo-fast": { model: "veo3_lite", resolution: "720p" },
   "hailuo-safe": { duration: 5, aspectRatio: "16:9" },
 };
 

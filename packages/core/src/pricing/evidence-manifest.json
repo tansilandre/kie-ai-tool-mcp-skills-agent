@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "lastReviewedAt": "2026-08-17",
+  "lastReviewedAt": "2026-10-02",
   "reviewedSources": [
     {
       "url": "https://kie.ai/pricing",
@@ -19,6 +19,12 @@
       "fingerprint": "manual-review-2026-08-17:minimax-h3-reference-to-video",
       "verifiedAt": "2026-08-17",
       "scope": "MiniMax H3 reference-to-video capability and request scope"
+    },
+    {
+      "url": "https://docs.kie.ai/old-model/veo3-api/generate-veo-3-video",
+      "fingerprint": "manual-review-2026-10-02:veo3-legacy-generate",
+      "verifiedAt": "2026-10-02",
+      "scope": "Legacy Veo endpoint: model veo3_lite, aspect_ratio, resolution 720p/1080p/4k, duration 4/6/8"
     }
   ],
   "existingFormulaEvidence": [
@@ -39,6 +45,18 @@
       "sourceFingerprint": "kie-pricing-2026-08-17:minimax-h3-reference-768p:16-per-second",
       "verifiedAt": "2026-08-17",
       "tests": [
+        "packages/core/src/__tests__/media-planning.test.ts"
+      ]
+    },
+    {
+      "scope": "veo3_generate_video:model=veo3_lite:resolution=720p|1080p",
+      "formula": "30 credits per clip at 720p, 35 at 1080p (up to 8 s)",
+      "sourceUrl": "https://kie.ai/pricing",
+      "sourceFingerprint": "kie-pricing-2026-10-02:veo-3-1-lite:720p-30-1080p-35-per-video",
+      "verifiedAt": "2026-10-02",
+      "observedCharges": "balance drops: 30 per 720p clip (2026-09-28), 35 per 1080p clip x5 (2026-09-28)",
+      "tests": [
+        "packages/core/src/__tests__/veo-status.test.ts",
         "packages/core/src/__tests__/media-planning.test.ts"
       ]
     }
