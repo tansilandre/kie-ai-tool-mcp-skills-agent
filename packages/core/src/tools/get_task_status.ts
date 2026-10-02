@@ -1,6 +1,39 @@
 import { GetTaskStatusSchema } from "../types.js";
 import type { ToolContext, ToolDef, ToolResult } from "./types.js";
 
+/**
+ * Unified-task results put files in `resultUrls`; Suno-style audio tasks list
+ * tracks under `data[].audio_url`; text and analysis tasks return a
+ * `resultObject`. See kie.ai's recordInfo docs.
+ */
+export function extractResultOutputs(result: unknown): {
+  urls: string[];
+  resultObject?: unknown;
+} {
+  if (!result || typeof result !== "object") return { urls: [] };
+  const record = result as Record<string, unknown>;
+  const urls: string[] = [];
+  if (Array.isArray(record.resultUrls)) {
+    urls.push(
+      ...record.resultUrls.filter(
+        (url): url is string => typeof url === "string",
+      ),
+    );
+  }
+  if (Array.isArray(record.data)) {
+    for (const track of record.data) {
+      const audio = (track as Record<string, unknown> | null)?.audio_url;
+      if (typeof audio === "string") urls.push(audio);
+    }
+  }
+  return {
+    urls: [...new Set(urls)],
+    ...(record.resultObject !== undefined
+      ? { resultObject: record.resultObject }
+      : {}),
+  };
+}
+
 export const getTaskStatusTool: ToolDef<typeof GetTaskStatusSchema> = {
   name: "get_task_status",
   description:
@@ -16,6 +49,9 @@ export const getTaskStatusTool: ToolDef<typeof GetTaskStatusSchema> = {
       // Always try to get updated status from API, passing api_type if available
       let apiResponse = null;
       let parsedResult = null;
+      // Every output URL of a unified-task result, not just the first one.
+      let allResultUrls: string[] = [];
+      let resultObject: unknown;
 
       try {
         apiResponse = await ctx.client.getTaskStatus(
@@ -202,7 +238,12 @@ export const getTaskStatusTool: ToolDef<typeof GetTaskStatusSchema> = {
 
             if (state === "success") status = "completed";
             else if (state === "fail") status = "failed";
-            else if (state === "waiting") status = "processing";
+            else if (
+              state === "waiting" ||
+              state === "queuing" ||
+              state === "generating"
+            )
+              status = "processing";
 
             // Parse resultJson if available
             if (resultJson) {
@@ -213,7 +254,12 @@ export const getTaskStatusTool: ToolDef<typeof GetTaskStatusSchema> = {
               }
             }
 
-            resultUrl = parsedResult?.resultUrls?.[0] || undefined;
+            const extracted = extractResultOutputs(
+              parsedResult ?? apiData.response,
+            );
+            allResultUrls = extracted.urls;
+            resultObject = extracted.resultObject;
+            resultUrl = allResultUrls[0];
             errorMessage = failMsg || undefined;
           }
 
@@ -321,7 +367,13 @@ export const getTaskStatusTool: ToolDef<typeof GetTaskStatusSchema> = {
         success: true,
         task_id: task_id,
         status: updatedTask?.status,
-        result_urls: updatedTask?.result_url ? [updatedTask.result_url] : [],
+        result_urls:
+          allResultUrls.length > 0
+            ? allResultUrls
+            : updatedTask?.result_url
+              ? [updatedTask.result_url]
+              : [],
+        ...(resultObject !== undefined ? { result_object: resultObject } : {}),
         error: updatedTask?.error_message,
         api_response: apiResponse,
         message: updatedTask

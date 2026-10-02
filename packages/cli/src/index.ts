@@ -135,6 +135,29 @@ function build() {
         return y;
       },
       async (argv) => {
+        // run_model must go through a plan. In the CLI, approval is the
+        // --approve flag on submit_media_generation, which anything with a
+        // shell can type: it stops accidents, not a determined agent. A
+        // human-only approval step and credit caps are roadmap step 4. (The
+        // older per-model commands keep upstream's direct behaviour until then.)
+        if (
+          tool.category === "catalog" &&
+          process.env.KIE_AI_ALLOW_DIRECT_GENERATION !== "true"
+        ) {
+          process.stdout.write(
+            `${JSON.stringify(
+              {
+                success: false,
+                tool: tool.name,
+                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> --approve <id>. Set KIE_AI_ALLOW_DIRECT_GENERATION=true to skip the plan.`,
+              },
+              null,
+              2,
+            )}\n`,
+          );
+          process.exitCode = 1;
+          return;
+        }
         // The CLI's stable context keeps --approve usable across separate processes.
         const ctx = createToolContext("cli");
         if (tool.name === "submit_media_generation") {

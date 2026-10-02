@@ -14,6 +14,8 @@ export interface PreparedPlanItem {
   appliedDefaults: Record<string, unknown>;
   effectiveSettings: Record<string, unknown>;
   price: PriceState;
+  /** Non-blocking findings, e.g. a field the model's schema doesn't list. */
+  warnings?: string[];
 }
 
 export interface PreparedGenerationPlan {
@@ -174,6 +176,8 @@ export function resolveGenerationMode(
       return "text-to-speech";
     case "elevenlabs_ttsfx":
       return "sound-effects";
+    case "run_model":
+      return "catalog-model";
     default:
       return "generate";
   }
@@ -181,13 +185,31 @@ export function resolveGenerationMode(
 
 function resolveModel(tool: string, parsed: Record<string, unknown>): string {
   const catalog = getCatalogEntry(tool);
-  if (tool === "nano_banana_image" || tool === "veo3_generate_video")
+  if (
+    tool === "nano_banana_image" ||
+    tool === "veo3_generate_video" ||
+    tool === "run_model"
+  )
     return String(parsed.model);
   return catalog?.model ?? tool;
 }
 
-function resolveOutputCount(args: Record<string, unknown>): number {
-  for (const key of ["max_images", "num_images", "videoBatchSize", "repeat"]) {
+// Output-count fields that catalog models use inside `input`.
+const CATALOG_COUNT_FIELDS = [
+  "n",
+  "num_images",
+  "num_outputs",
+  "number_of_images",
+  "max_images",
+  "batch_size",
+  "count",
+];
+
+function resolveOutputCount(
+  args: Record<string, unknown>,
+  keys = ["max_images", "num_images", "videoBatchSize", "repeat"],
+): number {
+  for (const key of keys) {
     const value = args[key];
     const count = typeof value === "number" ? value : Number(value);
     if (Number.isInteger(count) && count > 0) return count;
@@ -207,6 +229,15 @@ function toolSchemaDefaults(
   return defaults;
 }
 
+/** Facts looked up before planning, e.g. from the live catalog for run_model. */
+export interface PlanItemDetails {
+  /** Overrides the mode derived from the arguments. */
+  mode?: string;
+  /** kie.ai's own price text, shown to the approver when no exact formula exists. */
+  priceNote?: string;
+  warnings?: string[];
+}
+
 export function prepareGenerationPlan(
   requestedItems: Array<{ tool: string; args: Record<string, unknown> }>,
   tools: Map<string, ToolDef>,
@@ -214,6 +245,7 @@ export function prepareGenerationPlan(
     defaultProfile?: "safe";
     maxConcurrency?: number;
     expiresInSeconds?: number;
+    itemDetails?: Array<PlanItemDetails | undefined>;
   } = {},
 ): PreparedGenerationPlan {
   const createdAt = new Date().toISOString();
@@ -254,15 +286,26 @@ export function prepareGenerationPlan(
       ...policyApplied,
       ...toolSchemaDefaults(tool.schema, beforeParse, parsed),
     };
+    const details = options.itemDetails?.[index];
     const model = resolveModel(requested.tool, parsed);
-    const mode = resolveGenerationMode(requested.tool, parsed);
-    const outputCount = resolveOutputCount(parsed);
-    const price = priceRequest(
+    const mode = details?.mode ?? resolveGenerationMode(requested.tool, parsed);
+    const outputCount =
+      requested.tool === "run_model"
+        ? resolveOutputCount(
+            (parsed.input ?? {}) as Record<string, unknown>,
+            CATALOG_COUNT_FIELDS,
+          )
+        : resolveOutputCount(parsed);
+    const quoted = priceRequest(
       requested.tool,
       { ...parsed, outputCount },
       model,
       mode,
     );
+    const price =
+      details?.priceNote && quoted.status !== "exact"
+        ? { ...quoted, note: details.priceNote }
+        : quoted;
     return {
       index,
       tool: requested.tool,
@@ -273,6 +316,7 @@ export function prepareGenerationPlan(
       appliedDefaults,
       effectiveSettings: parsed,
       price,
+      ...(details?.warnings?.length ? { warnings: details.warnings } : {}),
     };
   });
   const exact = items.every((item) => item.price.status === "exact");

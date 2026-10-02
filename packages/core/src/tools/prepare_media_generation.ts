@@ -1,5 +1,9 @@
-import { prepareGenerationPlan } from "../generation-plan.js";
-import { PrepareMediaGenerationSchema } from "../types.js";
+import {
+  type PlanItemDetails,
+  prepareGenerationPlan,
+} from "../generation-plan.js";
+import { PrepareMediaGenerationSchema, RunModelSchema } from "../types.js";
+import { requireCatalog } from "./catalog-helpers.js";
 import type {
   PlanApprovalDecision,
   ToolContext,
@@ -76,6 +80,50 @@ function approvalRequiredResult(
   };
 }
 
+/**
+ * run_model items are checked against the model's live schema before a plan
+ * exists, so a bad input fails here instead of after approval. One at a time:
+ * kie.ai rate-limits the schema endpoint.
+ */
+async function catalogDetails(
+  items: Array<{ tool: string; args: Record<string, unknown> }>,
+  ctx: ToolContext,
+): Promise<Array<PlanItemDetails | undefined>> {
+  const details: Array<PlanItemDetails | undefined> = [];
+  for (const [index, item] of items.entries()) {
+    if (item.tool !== "run_model") {
+      details.push(undefined);
+      continue;
+    }
+    if (!ctx.getTool("run_model")) {
+      throw new Error("run_model is not enabled on this server.");
+    }
+    const catalog = requireCatalog(ctx);
+    const { model, input, allowExtraFields } = RunModelSchema.parse(item.args);
+    const check = await catalog.checkInput(model, input, { allowExtraFields });
+    if (!check.ok) {
+      const notes = check.warnings.length
+        ? ` Also: ${check.warnings.join("; ")}.`
+        : "";
+      throw new Error(
+        `Item ${index + 1} (${check.shape.model}) does not match the model's schema: ${check.errors.join("; ")}.${notes} Call get_model_schema for the accepted fields.`,
+      );
+    }
+    const entry = await catalog.getModel(check.shape.model);
+    details.push({
+      // kie.ai's listing says what the model offers, not what this request
+      // does (Seedance 1.5 Pro is listed only as image-to-video but also does
+      // text-to-video), so label it as the listing.
+      mode: entry?.taskType?.length
+        ? `kie.ai lists: ${entry.taskType.join(", ").toLowerCase()}`
+        : undefined,
+      priceNote: entry?.pricingDesc ?? undefined,
+      warnings: check.warnings,
+    });
+  }
+  return details;
+}
+
 export const prepareMediaGenerationTool: ToolDef<
   typeof PrepareMediaGenerationSchema
 > = {
@@ -94,10 +142,12 @@ export const prepareMediaGenerationTool: ToolDef<
             (entry): entry is [string, ToolDef] => entry[1] !== undefined,
           ),
       );
+      const itemDetails = await catalogDetails(request.items, ctx);
       const plan = prepareGenerationPlan(request.items, tools, {
         defaultProfile: request.defaultProfile,
         maxConcurrency: request.maxConcurrency,
         expiresInSeconds: request.expiresInSeconds,
+        itemDetails,
       });
       await ctx.db.createGenerationPlan(plan, ctx.approvalContext);
       if (!ctx.requestPlanApproval) {

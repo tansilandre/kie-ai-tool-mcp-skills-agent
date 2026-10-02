@@ -1,0 +1,321 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "model": "gpt-image-2-text-to-image",
+    "openapi": {
+      "openapi": "3.1.0",
+      "info": {
+        "title": "kie.ai",
+        "description": "kie.ai API 文档",
+        "version": "1.0.0",
+        "contact": {
+          "name": "技术支持",
+          "email": "support@kie.ai"
+        }
+      },
+      "tags": [],
+      "paths": {
+        "/api/v1/jobs/createTask": {
+          "post": {
+            "summary": "GPT Image-2 - Text to Image",
+            "deprecated": false,
+            "description": "## Create Task\n\nUse this endpoint to create a new text-to-image generation task.\n\n<Card title=\"Get Task Details\" icon=\"lucide-search\" href=\"/market/common/get-task-detail\">\n  After submission, use the unified query endpoint to check task progress and retrieve results\n</Card>\n\n::: tip[]\nFor production use, we recommend providing the `callBackUrl` parameter so your service can receive completion notifications instead of polling for task status.\n:::\n\n## Related Resources\n\n<CardGroup cols={2}>\n  <Card title=\"Model Marketplace\" icon=\"lucide-store\" href=\"/market/quickstart\">\n    Explore all available models and capabilities\n  </Card>\n  <Card title=\"Common API\" icon=\"lucide-cog\" href=\"/common-api/get-account-credits\">\n    Check account credits and usage\n  </Card>\n</CardGroup>",
+            "operationId": "gpt-image-2-text-to-image",
+            "tags": [],
+            "parameters": [],
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "required": ["model", "input"],
+                    "properties": {
+                      "model": {
+                        "type": "string",
+                        "description": "The model name used for generation. This field is required. This endpoint must use the `gpt-image-2-text-to-image` model.",
+                        "enum": ["gpt-image-2-text-to-image"],
+                        "default": "gpt-image-2-text-to-image",
+                        "examples": ["gpt-image-2-text-to-image"]
+                      },
+                      "callBackUrl": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Callback URL for task completion notifications. Optional parameter. If provided, the system will send a POST request to this URL when the task completes, whether it succeeds or fails. If omitted, no callback notification will be sent.",
+                        "examples": ["https://your-domain.com/api/callback"]
+                      },
+                      "input": {
+                        "type": "object",
+                        "description": "Input parameters for the text-to-image task.",
+                        "required": ["prompt"],
+                        "properties": {
+                          "prompt": {
+                            "type": "string",
+                            "description": "Text prompt. Required, maximum 20,000 characters.",
+                            "minLength": 1,
+                            "maxLength": 20000,
+                            "examples": [
+                              "A cinematic night city poster with neon reflections on a rainy street."
+                            ]
+                          },
+                          "aspect_ratio": {
+                            "type": "string",
+                            "description": "The aspect ratio of the generated image is set to auto by default.\nNote: for 2K resolution, the following aspect ratios are not supported: 5:4, 4:5, 3:1, 1:3, and 9:21.\nfor 4K resolution, the following aspect ratios are not supported: 3:1, 1:3, and 9:21.",
+                            "enum": [
+                              "auto",
+                              "1:1",
+                              "3:2",
+                              "2:3",
+                              "4:3",
+                              "3:4",
+                              "5:4",
+                              "4:5",
+                              "16:9",
+                              "9:16",
+                              "2:1",
+                              "1:2",
+                              "3:1",
+                              "1:3",
+                              "21:9",
+                              "9:21"
+                            ]
+                          },
+                          "resolution": {
+                            "type": "string",
+                            "enum": ["1K", "2K", "4K"],
+                            "description": "Image resolution: Note: Images with a 1:1 aspect ratio cannot be converted to 4K images. Images with the aspect ratio set to \"auto\" or without a specified aspect ratio parameter will only be converted to 1K images; otherwise, the task will fail to create."
+                          },
+                          "background": {
+                            "type": "string",
+                            "description": "Image background\nNote: This parameter is only supported when the resolution is 1K.",
+                            "enum": ["transparent", "opaque", "auto"]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "example": {
+                    "model": "gpt-image-2-text-to-image",
+                    "callBackUrl": "https://your-domain.com/api/callback",
+                    "input": {
+                      "prompt": "A cinematic night city poster with neon reflections on a rainy street.",
+                      "aspect_ratio": "auto"
+                    }
+                  }
+                }
+              },
+              "required": true
+            },
+            "responses": {
+              "200": {
+                "description": "Request successful",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "allOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "integer",
+                              "description": "Response Status Codes\n\n200: Success - The request was successfully processed.\n\n401: Unauthorized - Insufficient or invalid authentication credentials.\n\n402: Insufficient Quota - The account has insufficient quota to perform this operation.\n\n404: Not Found - The requested resource or interface does not exist.\n\n422: Validation Error - The request parameters failed the validation check.\n\n429: Request Restricted - The request frequency limit for this resource has been exceeded.\n\n433: Request Limit - The subkey usage exceeded the limit.\n\n455: Service Unavailable - The system is currently under maintenance.\n\n500: Server Error - An unexpected error occurred while processing the request.\n\n501: Generation Failed - The content generation task failed.\n\n505: Feature Disabled - The requested feature is currently disabled.",
+                              "enum": [
+                                200, 401, 402, 404, 422, 429, 433, 455, 500,
+                                501, 505
+                              ]
+                            },
+                            "msg": {
+                              "type": "string",
+                              "description": "Response message, error description upon failure",
+                              "examples": ["success"]
+                            },
+                            "data": {
+                              "type": "object",
+                              "required": ["taskId"],
+                              "properties": {
+                                "taskId": {
+                                  "type": "string",
+                                  "description": "The task ID can be used with the \"Get Task Details\" endpoint to query the task status.",
+                                  "examples": [
+                                    "dc1928bfcbc77cb6c85f3359a9c718b3"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "required": ["data"]
+                        }
+                      ]
+                    },
+                    "example": {
+                      "code": 200,
+                      "msg": "success",
+                      "data": {
+                        "taskId": "task_gptimage_1765180586443"
+                      }
+                    }
+                  }
+                },
+                "headers": {}
+              }
+            },
+            "security": [
+              {
+                "BearerAuth": []
+              }
+            ],
+            "callbacks": {
+              "onImageGenerated": {
+                "{$request.body#/callBackUrl}": {
+                  "post": {
+                    "summary": "Image Generation Callback",
+                    "description": "When the image generation task is completed, the system sends the result to your callback URL via a POST request.",
+                    "requestBody": {
+                      "required": true,
+                      "content": {
+                        "application/json": {
+                          "schema": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "integer",
+                                "description": "Status code\n\n- **200**: Success - Image generation task completed successfully\n- **400**: Invalid request parameters or content violates policy\n- **500**: Internal error. Please try again later.\n- **501**: Failed - Image generation task failed",
+                                "enum": [200, 400, 500, 501]
+                              },
+                              "msg": {
+                                "type": "string",
+                                "description": "Status message",
+                                "example": "Playground task completed successfully."
+                              },
+                              "data": {
+                                "type": "object",
+                                "properties": {
+                                  "completeTime": {
+                                    "type": "integer",
+                                    "format": "int64",
+                                    "description": "Task completion time, represented as a Unix timestamp in milliseconds",
+                                    "example": 1786432830000
+                                  },
+                                  "costTime": {
+                                    "type": "integer",
+                                    "description": "Task duration in seconds",
+                                    "example": 83
+                                  },
+                                  "createTime": {
+                                    "type": "integer",
+                                    "format": "int64",
+                                    "description": "Task creation time, represented as a Unix timestamp in milliseconds",
+                                    "example": 1786432746000
+                                  },
+                                  "creditsConsumed": {
+                                    "type": "number",
+                                    "format": "double",
+                                    "description": "Number of credits consumed by the task",
+                                    "example": 3
+                                  },
+                                  "model": {
+                                    "type": "string",
+                                    "description": "Image generation model used for the task",
+                                    "example": "gpt-image-2-text-to-image"
+                                  },
+                                  "param": {
+                                    "type": "string",
+                                    "description": "Parameters submitted when creating the task, in JSON string format",
+                                    "example": "{\"input\":\"{\\\"aspect_ratio\\\":\\\"auto\\\",\\\"prompt\\\":\\\"A cinematic night city poster with neon reflections on a rainy street.\\\"}\",\"callBackUrl\":\"https://webhook.uutool.cn/5f723555-ec59-4b8f-8feb-bed810982785\",\"model\":\"gpt-image-2-text-to-image\"}"
+                                  },
+                                  "resultJson": {
+                                    "type": "string",
+                                    "description": "Image generation result in JSON string format. resultUrls contains the list of generated image URLs.",
+                                    "example": "{\"resultUrls\":[\"https://tempfile.aiquickdraw.com/images/chatgpt/file_000000002b24820caef9f1684a4f4747.png\"]}"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "description": "Task status",
+                                    "enum": ["success", "fail"],
+                                    "example": "success"
+                                  },
+                                  "taskId": {
+                                    "type": "string",
+                                    "description": "Task ID",
+                                    "example": "ed578231bfed231f0884c564579a965d"
+                                  },
+                                  "updateTime": {
+                                    "type": "integer",
+                                    "format": "int64",
+                                    "description": "Last task update time, represented as a Unix timestamp in milliseconds",
+                                    "example": 1786432830000
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "responses": {
+                      "200": {
+                        "description": "Callback received successfully"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "webhooks": {},
+      "components": {
+        "schemas": {
+          "response not with recordId": {
+            "type": "object",
+            "required": ["data"],
+            "properties": {
+              "code": {
+                "type": "integer",
+                "description": "Response Status Codes\n\n200: Success - The request was successfully processed.\n\n401: Unauthorized - Insufficient or invalid authentication credentials.\n\n402: Insufficient Quota - The account has insufficient quota to perform this operation.\n\n404: Not Found - The requested resource or interface does not exist.\n\n422: Validation Error - The request parameters failed the validation check.\n\n429: Request Restricted - The request frequency limit for this resource has been exceeded.\n\n433: Request Limit - The subkey usage exceeded the limit.\n\n455: Service Unavailable - The system is currently under maintenance.\n\n500: Server Error - An unexpected error occurred while processing the request.\n\n501: Generation Failed - The content generation task failed.\n\n505: Feature Disabled - The requested feature is currently disabled.",
+                "enum": [200, 401, 402, 404, 422, 429, 433, 455, 500, 501, 505]
+              },
+              "msg": {
+                "type": "string",
+                "description": "Response message, error description upon failure",
+                "examples": ["success"]
+              },
+              "data": {
+                "type": "object",
+                "required": ["taskId"],
+                "properties": {
+                  "taskId": {
+                    "type": "string",
+                    "description": "The task ID can be used with the \"Get Task Details\" endpoint to query the task status.",
+                    "examples": ["dc1928bfcbc77cb6c85f3359a9c718b3"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {},
+        "securitySchemes": {
+          "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "API Key",
+            "description": "All API requests require a Bearer Token. Add the header `Authorization: Bearer YOUR_API_KEY` to authenticate requests."
+          }
+        }
+      },
+      "servers": [
+        {
+          "url": "https://api.kie.ai",
+          "description": "正式环境"
+        }
+      ],
+      "security": [
+        {
+          "BearerAuth": []
+        }
+      ]
+    }
+  }
+}

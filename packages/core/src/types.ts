@@ -2154,7 +2154,9 @@ export interface TaskRecord {
     | "happyhorse-video"
     | "omnihuman-video"
     | "gemini-omni-video"
-    | "mcp-task";
+    | "mcp-task"
+    // run_model tasks: "market:" followed by the kie.ai catalog model id.
+    | `market:${string}`;
   status: "pending" | "processing" | "completed" | "failed";
   created_at: string;
   updated_at: string;
@@ -2307,11 +2309,96 @@ export const ListModelsSchema = z.object({
 });
 export type ListModelsRequest = z.infer<typeof ListModelsSchema>;
 
+// Live kie.ai catalog (GET /api/v1/models and per-model endpoints). Free calls.
+const CatalogModelIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .describe(
+    'Exact kie.ai model id from search_models, e.g. "gpt-image-2-text-to-image" or "bytedance/seedance-1.5-pro"',
+  );
+
+export const SearchModelsSchema = z.object({
+  query: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Words that must all appear in the model id, title, provider or task type, e.g. "veo" or "image edit"',
+    ),
+  taskType: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'kie.ai task type, e.g. "Text to Image", "Image to Video", "Text to Speech", "Lip Sync"',
+    ),
+  provider: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Provider name, e.g. "Google", "Kling", "ByteDance", "Suno"'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe("Maximum models to return (default 25)"),
+});
+export type SearchModelsRequest = z.infer<typeof SearchModelsSchema>;
+
+export const GetModelSchemaSchema = z.object({
+  model: CatalogModelIdSchema,
+  raw: z
+    .boolean()
+    .optional()
+    .describe(
+      "Return the full dereferenced request schema instead of the compact field list (more tokens)",
+    ),
+});
+export type GetModelSchemaRequest = z.infer<typeof GetModelSchemaSchema>;
+
+export const GetModelStatusSchema = z.object({
+  model: CatalogModelIdSchema,
+});
+export type GetModelStatusRequest = z.infer<typeof GetModelStatusSchema>;
+
+export const GetBalanceSchema = z.object({});
+export type GetBalanceRequest = z.infer<typeof GetBalanceSchema>;
+
+export const RunModelSchema = z.object({
+  model: CatalogModelIdSchema,
+  input: z
+    .record(z.string(), z.unknown())
+    .describe(
+      "The model's input object, with the field names from get_model_schema. Media inputs must be public URLs (upload local files first)",
+    ),
+  callBackUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe("Optional webhook kie.ai calls when the task finishes"),
+  allowExtraFields: z
+    .boolean()
+    .optional()
+    .describe(
+      "Send input fields the model's schema doesn't list. Off by default because a misspelled field is ignored by kie.ai and you pay for its default; turn on only when kie.ai's schema is missing a field you know exists",
+    ),
+});
+export type RunModelRequest = z.infer<typeof RunModelSchema>;
+
 export const PrepareMediaGenerationSchema = z.object({
   items: z
     .array(
       z.object({
-        tool: z.string().min(1).describe("Registered generation tool name"),
+        tool: z
+          .string()
+          .min(1)
+          .describe(
+            'Registered generation tool name, or "run_model" with args {model, input} for any kie.ai catalog model',
+          ),
         args: z
           .record(z.string(), z.unknown())
           .describe("Arguments for that tool"),

@@ -449,6 +449,8 @@ export class KieAiClient {
     // Use api_type to determine correct endpoint, with fallback strategy
     if (apiType === "veo3") {
       return this.makeRequest<any>(`/veo/record-info?taskId=${taskId}`, "GET");
+    } else if (apiType?.startsWith("market:")) {
+      return this.makeRequest<any>(`/jobs/recordInfo?taskId=${taskId}`, "GET");
     } else if (
       apiType === "nano-banana" ||
       apiType === "nano-banana-edit" ||
@@ -972,6 +974,31 @@ export class KieAiClient {
     }
 
     return this.makeRequest<TaskResponse>("/mj/generate", "POST", payload);
+  }
+
+  /**
+   * GETs a kie.ai JSON endpoint (catalog, schema, price, success rate, credit
+   * balance) and returns the `{code, msg, data}` envelope. kie.ai often answers
+   * HTTP 200 with an error `code` in the body, so callers must check `code`.
+   */
+  async getEnvelope<T = unknown>(endpoint: string): Promise<KieAiResponse<T>> {
+    return this.makeRequest<T>(endpoint, "GET");
+  }
+
+  /**
+   * Creates a task for any catalog model on the unified task endpoint. The
+   * caller is responsible for validating `input` against the model's schema.
+   */
+  async createMarketTask(request: {
+    model: string;
+    input: Record<string, unknown>;
+    callBackUrl?: string;
+  }): Promise<KieAiResponse<TaskResponse>> {
+    return this.makeRequest<TaskResponse>("/jobs/createTask", "POST", {
+      model: request.model,
+      input: request.input,
+      ...(request.callBackUrl ? { callBackUrl: request.callBackUrl } : {}),
+    });
   }
 
   async generateGptImage2(

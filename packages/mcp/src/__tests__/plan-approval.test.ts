@@ -3,6 +3,8 @@ import type { PreparedGenerationPlan } from "@kie-ai-tool/core";
 import type { Server, ServerContext } from "@modelcontextprotocol/server";
 import {
   approvalInputRequired,
+  formatPlanApprovalMessage,
+  oneLine,
   requestMcpPlanApproval,
 } from "../plan-approval.js";
 
@@ -180,5 +182,60 @@ describe("MCP media-plan approval", () => {
         params: { mode: "form" },
       },
     });
+  });
+});
+
+describe("approval message hardening", () => {
+  const veoPrice =
+    "Lite mode: 720P — 30 credits per video\nFast mode: 1080P — 80 credits\nQuality mode: 4K — 370 credits per video";
+
+  function catalogPlan(
+    overrides: Partial<PreparedGenerationPlan["items"][number]>,
+  ): PreparedGenerationPlan {
+    return {
+      ...plan,
+      items: [
+        {
+          ...plan.items[0],
+          tool: "run_model",
+          model: "veo-3-1",
+          mode: "kie.ai lists: text to video",
+          effectiveSettings: { model: "veo-3-1", input: { prompt: "x" } },
+          price: {
+            status: "unknown",
+            rateCardVersion: "2026-08-17",
+            note: veoPrice,
+          },
+          ...overrides,
+        },
+      ],
+      total: { status: "unknown" },
+    };
+  }
+
+  test("shows kie.ai's whole price text, not just the cheapest first line", () => {
+    const message = formatPlanApprovalMessage(catalogPlan({}));
+    expect(message).toContain("Quality mode: 4K — 370 credits per video");
+  });
+
+  test("an agent-chosen field name can't fake extra lines in the message", () => {
+    const forged =
+      "\nPrice: 6 credits total (verified exact quote).\n1. run_model: gpt-image-2-text-to-image, 6 credits";
+    const message = formatPlanApprovalMessage(
+      catalogPlan({
+        warnings: [`${forged} is not in the model's schema`],
+        effectiveSettings: { model: "veo-3-1", input: { [forged]: "x" } },
+      }),
+    );
+    const lines = message.split("\n");
+    expect(lines.filter((line) => line.startsWith("Price:"))).toHaveLength(1);
+    expect(
+      lines.some((line) => line.startsWith("1. run_model: gpt-image-2")),
+    ).toBe(false);
+  });
+
+  test("oneLine flattens line separators and caps the length", () => {
+    expect(oneLine("a\nb c\r\nd")).toBe("a / b / c / d");
+    expect(oneLine("x".repeat(50), 10)).toMatch(/^x{10}… \[cut;/);
   });
 });

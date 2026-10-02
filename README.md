@@ -9,10 +9,24 @@ Kling 3.0, Seedance, Gemini Omni, Suno, ElevenLabs and more) behind one API key,
 the official price. This repo gives agents a proper way to use it: find the right model, show the
 price, wait for your yes, generate, and hand back the files.
 
-> **Status: early, under active development.** What works today is the MCP server and CLI inherited
-> from [felores/kie-cli-mcp](https://github.com/felores/kie-cli-mcp): 38 kie.ai models behind a
-> prepare → approve → submit step. The live model catalog, the plugin install, the creative skills and
-> the agent are being built now. See the [roadmap](docs/ROADMAP.md).
+> **Status: early, under active development.** Works today: the MCP server and CLI, with every
+> model in kie.ai's live catalog (search, schemas, prices, health, balance) behind a
+> prepare → approve → submit step. The plugin install, the creative skills and the agent are being
+> built now. See the [roadmap](docs/ROADMAP.md).
+
+## What an agent can do with it
+
+| Tool | Cost | What it does |
+|---|---|---|
+| `search_models` | free | Search kie.ai's live catalog of 200+ models by words, task type or provider |
+| `get_model_schema` | free | A model's input fields, required ones, allowed values, defaults and an example |
+| `get_model_status` | free | kie.ai's price text and the model's success rate over the last hour and day |
+| `get_balance` | free | Credits left on your key |
+| `prepare_media_generation` | free | Checks a request against the model's live schema, shows the price, saves a plan |
+| `submit_media_generation` | spends | Runs an approved plan once |
+| `run_model` | spends | Any catalog model, inside a plan |
+| `gpt_image_2`, `kling_video`, … | spend | 28 hand-tuned model tools with safe defaults, inside a plan |
+| `wait_for_task`, `get_task_status` | free | Waits for a task and returns every result URL |
 
 ## What's inside
 
@@ -64,7 +78,9 @@ the absolute path to your clone:
 ```bash
 export KIE_AI_API_KEY=your-key
 node packages/cli/dist/index.js --help
-node packages/cli/dist/index.js list_models --filter video
+node packages/cli/dist/index.js search_models --query veo
+node packages/cli/dist/index.js get_model_schema --model gpt-image-2-text-to-image
+node packages/cli/dist/index.js get_balance
 ```
 
 ## How spending works
@@ -86,9 +102,12 @@ path for MCP clients that don't support forms.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `KIE_AI_API_KEY` | yes | Your kie.ai API key |
+| `KIE_AI_API_KEY` | yes | Your kie.ai API key. `KIE_API_KEY`, the name kie.ai's own docs use, works too |
+| `KIE_AI_CACHE_DIR` | no | Where model schemas are cached (default `~/.kie-ai/cache`, kept 24 hours) |
 | `KIE_AI_ENABLED_TOOLS` | no | Comma-separated tool names to load, to keep the agent's context small |
-| `KIE_AI_TOOL_CATEGORIES` | no | Load whole categories: `image`, `video`, `audio`, `utility` |
+| `KIE_AI_TOOL_CATEGORIES` | no | Load whole categories: `image`, `video`, `audio`, `catalog` (`run_model`), `utility` |
+| `KIE_AI_DISABLED_TOOLS` | no | Tools to hide. Disabling a model tool such as `veo3_generate_video` does not stop the same model through `run_model`; disable `run_model` too |
+| `KIE_AI_ALLOW_DIRECT_GENERATION` | no | `true` lets every paid tool, including `run_model` with any catalog model, run without a plan. Leave it off |
 | `KIE_AI_DB_PATH` | no | Where tasks and plans are stored (default `~/.kie-ai/tasks.db`) |
 | `KIE_AI_CALLBACK_URL` | no | Your own webhook for task completion |
 

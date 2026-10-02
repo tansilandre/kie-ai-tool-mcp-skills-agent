@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { KieCatalog } from "../catalog.js";
 import type { TaskDatabase } from "../database.js";
 import type { PreparedGenerationPlan } from "../generation-plan.js";
 import type { KieAiClient } from "../kie-ai-client.js";
@@ -63,6 +64,11 @@ export interface LocalUpload {
 export interface ToolContext {
   client: KieAiClient;
   db: TaskDatabase;
+  /**
+   * Live kie.ai catalog (model search, schemas, prices, balance). Adapters
+   * built before the catalog existed may omit it; tools that need it say so.
+   */
+  catalog?: KieCatalog;
   /** Opaque adapter-owned identity that binds a media plan to its caller. */
   approvalContext: string;
   /** Resolves the callback URL using env fallbacks (mirrors the MCP behaviour). */
@@ -106,7 +112,12 @@ export interface ToolContext {
   }): Promise<void>;
 }
 
-export type ToolCategory = "image" | "video" | "audio" | "utility";
+/**
+ * `catalog` is `run_model`: any kie.ai catalog model, validated against its
+ * live schema. Like image, video and audio it spends credits, so it is gated
+ * behind the plan approval flow.
+ */
+export type ToolCategory = "image" | "video" | "audio" | "catalog" | "utility";
 
 /**
  * Single source of truth for one tool. Add a model = add one ToolDef. Both the
