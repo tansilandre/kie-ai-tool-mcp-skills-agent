@@ -3,6 +3,7 @@ import type { KieCatalog } from "../catalog.js";
 import type { TaskDatabase } from "../database.js";
 import type { PreparedGenerationPlan } from "../generation-plan.js";
 import type { KieAiClient } from "../kie-ai-client.js";
+import type { SpendPolicy } from "../spend-policy.js";
 
 /**
  * Transport-agnostic result of running a tool. It is the MCP CallTool content
@@ -69,6 +70,8 @@ export interface ToolContext {
    * built before the catalog existed may omit it; tools that need it say so.
    */
   catalog?: KieCatalog;
+  /** Approval mode and credit caps; defaults apply when an adapter omits it. */
+  spendPolicy?: SpendPolicy;
   /** Opaque adapter-owned identity that binds a media plan to its caller. */
   approvalContext: string;
   /** Resolves the callback URL using env fallbacks (mirrors the MCP behaviour). */

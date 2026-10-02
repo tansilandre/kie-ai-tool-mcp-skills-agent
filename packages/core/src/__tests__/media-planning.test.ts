@@ -142,7 +142,7 @@ describe("media planning", () => {
       );
       expect(readResult(prepared)).toMatchObject({
         success: false,
-        error: expect.stringContaining("Unsupported generation tool"),
+        error: expect.stringContaining("is not a generation tool here"),
       });
 
       const plan = prepareGenerationPlan(
@@ -296,7 +296,7 @@ describe("media planning", () => {
       expect(readResult(unsupported)).toMatchObject({
         approved: false,
         status: "prepared",
-        reason: expect.stringContaining("cannot request approval"),
+        reason: expect.stringContaining("can't show an approval form"),
       });
       expect((await db.getGenerationPlan(unsupportedPlanId))?.status).toBe(
         "prepared",

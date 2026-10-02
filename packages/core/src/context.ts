@@ -5,6 +5,7 @@ import { KieCatalog } from "./catalog.js";
 import { TaskDatabase } from "./database.js";
 import { KieAiClient } from "./kie-ai-client.js";
 import { detectUploadMimeType } from "./media-validation.js";
+import { spendPolicyFromEnv } from "./spend-policy.js";
 import { formatToolError } from "./tools/format-error.js";
 import { getTool } from "./tools/index.js";
 import type { ToolContext } from "./tools/types.js";
@@ -60,6 +61,7 @@ export function createToolContext(approvalContext = "cli"): ToolContext {
     client,
     db,
     catalog: new KieCatalog(client),
+    spendPolicy: spendPolicyFromEnv(),
     approvalContext,
     getCallbackUrl: (url) =>
       url || process.env.KIE_AI_CALLBACK_URL || config.callbackUrlFallback,

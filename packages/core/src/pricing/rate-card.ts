@@ -9,6 +9,8 @@ export interface PriceState {
   rateCardVersion: string;
   /** kie.ai's own price text for the model, shown when no exact formula exists. */
   note?: string;
+  /** How an estimate was reached, e.g. "up to 6 credits at 1k". */
+  basis?: string;
 }
 
 export interface RateCardEntry {

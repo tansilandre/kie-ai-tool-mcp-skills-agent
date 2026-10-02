@@ -270,6 +270,10 @@ export const getTaskStatusTool: ToolDef<typeof GetTaskStatusSchema> = {
             error_message: errorMessage,
             credits_consumed: creditsConsumed,
           });
+          // The real charge replaces the estimate in the daily budget.
+          if (typeof creditsConsumed === "number") {
+            ctx.db.recordActualCredits(task_id, creditsConsumed);
+          }
         }
       } catch (error) {
         // API call failed, use local data if available

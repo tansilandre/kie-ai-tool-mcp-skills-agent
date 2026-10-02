@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Spend controls (design: `docs/design/spend-controls.md`). Approval modes in
+  `KIE_AI_APPROVAL`: `form` (default: the app's approval dialog, or a code typed in a terminal
+  for the CLI), `chat` (the agent relays the person's yes through the new
+  `approve_media_generation` tool, for apps without forms) and `auto` (plans up to
+  `KIE_AI_AUTO_APPROVE_CREDITS`). Credit caps in every mode: `KIE_AI_MAX_CREDITS_PER_PLAN`
+  (default 150) and `KIE_AI_MAX_CREDITS_PER_DAY` (default 600), checked at prepare, approval and
+  submit. The daily check and the claim share one write transaction, so plans racing for the
+  last of the budget can't both run. A spend ledger counts real charges where kie.ai reports
+  them. The Claude Code plugin offers all of these as settings.
+- Upper-bound price estimates from kie.ai's price text for `run_model` plans (resolution,
+  duration and output count aware); exact formulas still win.
 - Claude Code plugin and marketplace in the repo root (`/plugin marketplace add
   tansilandre/kie-ai-tool-mcp-skills-agent`, `/plugin install kie@kie-ai-tool`). It asks for the
   kie.ai key once and stores it in secure storage, falling back to `KIE_API_KEY`.
@@ -27,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `KIE_API_KEY` is accepted as well as `KIE_AI_API_KEY`.
 
 ### Changed
+- **Breaking (CLI):** every paid command, including the 28 per-model commands, now runs through a
+  plan unless `KIE_AI_ALLOW_DIRECT_GENERATION=true`. `submit_media_generation` in a terminal asks
+  the person to type a code; without a terminal only chat mode accepts `--approve <planId>`.
 - The task store uses Node's built-in `node:sqlite` instead of the native `sqlite3` package, which
   needed a compiler or prebuilt binary and often failed on Windows. Node 22.13 or newer is now
   required. Existing databases open unchanged.

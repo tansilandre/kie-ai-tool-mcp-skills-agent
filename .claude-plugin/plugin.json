@@ -1,7 +1,7 @@
 {
   "name": "kie",
   "displayName": "kie.ai toolkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Make images, video, music and speech with any kie.ai model: live catalog, prices and model health, a plan you approve before credits are spent, skills and a ready-made media agent.",
   "author": {
     "name": "Andre Tansil",
@@ -27,7 +27,11 @@
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/bundle/kie-mcp.mjs"],
       "env": {
-        "KIE_AI_API_KEY": "${user_config.kie_api_key}"
+        "KIE_AI_API_KEY": "${user_config.kie_api_key}",
+        "KIE_AI_APPROVAL": "${user_config.approval_mode}",
+        "KIE_AI_MAX_CREDITS_PER_PLAN": "${user_config.max_credits_per_plan}",
+        "KIE_AI_MAX_CREDITS_PER_DAY": "${user_config.max_credits_per_day}",
+        "KIE_AI_AUTO_APPROVE_CREDITS": "${user_config.auto_approve_credits}"
       }
     }
   },
@@ -37,6 +41,34 @@
       "title": "kie.ai API key",
       "description": "Create one at https://kie.ai/api-key. Leave it empty to use KIE_API_KEY from your shell instead.",
       "sensitive": true
+    },
+    "approval_mode": {
+      "type": "string",
+      "title": "Who approves spending",
+      "description": "form: you approve each plan in a dialog (recommended). chat: the agent shows the plan and relays your yes. auto: plans up to the auto-approve limit run without asking.",
+      "options": ["form", "chat", "auto"],
+      "default": "form"
+    },
+    "max_credits_per_plan": {
+      "type": "number",
+      "title": "Credit cap per plan",
+      "description": "No plan whose estimate is above this can run, in any mode. 1 credit is about US$0.005.",
+      "default": 150,
+      "min": 0
+    },
+    "max_credits_per_day": {
+      "type": "number",
+      "title": "Credit cap per 24 hours",
+      "description": "Spent in the last 24 hours plus a new plan may not go above this, in any mode.",
+      "default": 600,
+      "min": 0
+    },
+    "auto_approve_credits": {
+      "type": "number",
+      "title": "Auto-approve limit",
+      "description": "Auto mode only: the largest plan approved without asking. 0 turns auto approval off.",
+      "default": 0,
+      "min": 0
     }
   }
 }

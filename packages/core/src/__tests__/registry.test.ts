@@ -7,6 +7,7 @@ import { getTool, TOOL_REGISTRY } from "../tools/index.js";
 // to the exposed tool set an intentional, reviewed edit (snapshot below).
 
 const EXPECTED_TOOL_NAMES = [
+  "approve_media_generation",
   "bytedance_seedance_video",
   "bytedance_seedream_image",
   "elevenlabs_tts",

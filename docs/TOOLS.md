@@ -9,7 +9,7 @@ Every tool below is available in both the MCP server and the `kie-cli` CLI. Para
 - **Image:** [bytedance_seedream_image](#bytedance_seedream_image), [flux_kontext_image](#flux_kontext_image), [flux2_image](#flux2_image), [gpt_image_2](#gpt_image_2), [ideogram_reframe](#ideogram_reframe), [midjourney_generate](#midjourney_generate), [nano_banana_image](#nano_banana_image), [qwen_image](#qwen_image), [recraft_remove_background](#recraft_remove_background), [topaz_upscale_image](#topaz_upscale_image), [z_image](#z_image)
 - **Video:** [bytedance_seedance_video](#bytedance_seedance_video), [gemini_omni](#gemini_omni), [grok_imagine](#grok_imagine), [hailuo_video](#hailuo_video), [happyhorse_video](#happyhorse_video), [infinitalk_lip_sync](#infinitalk_lip_sync), [kling_avatar](#kling_avatar), [kling_video](#kling_video), [omnihuman_video](#omnihuman_video), [runway_aleph_video](#runway_aleph_video), [veo3_generate_video](#veo3_generate_video), [veo3_get_1080p_video](#veo3_get_1080p_video), [wan_animate](#wan_animate), [wan_video](#wan_video)
 - **Audio:** [elevenlabs_tts](#elevenlabs_tts), [elevenlabs_ttsfx](#elevenlabs_ttsfx), [suno_generate_music](#suno_generate_music)
-- **Utility:** [finalize_upload](#finalize_upload), [get_balance](#get_balance), [get_model_schema](#get_model_schema), [get_model_status](#get_model_status), [get_task_status](#get_task_status), [get_upload_url](#get_upload_url), [list_models](#list_models), [list_tasks](#list_tasks), [prepare_media_generation](#prepare_media_generation), [search_models](#search_models), [submit_media_generation](#submit_media_generation), [upload_file](#upload_file), [upload_widget](#upload_widget), [wait_for_task](#wait_for_task)
+- **Utility:** [approve_media_generation](#approve_media_generation), [finalize_upload](#finalize_upload), [get_balance](#get_balance), [get_model_schema](#get_model_schema), [get_model_status](#get_model_status), [get_task_status](#get_task_status), [get_upload_url](#get_upload_url), [list_models](#list_models), [list_tasks](#list_tasks), [prepare_media_generation](#prepare_media_generation), [search_models](#search_models), [submit_media_generation](#submit_media_generation), [upload_file](#upload_file), [upload_widget](#upload_widget), [wait_for_task](#wait_for_task)
 
 ---
 
@@ -528,6 +528,17 @@ Generate music with AI using Suno models (V3_5, V4, V4_5, V4_5PLUS, V5, V5_5). V
 | `audioWeight` | number | no | Balance weight for audio features (optional, range 0-1, up to 2 decimal places) |
 
 ## Utility tools
+
+### approve_media_generation
+
+Chat approval mode only (KIE_AI_APPROVAL=chat): record the person's yes to a prepared plan after showing them every item and its price. Never call it without their explicit yes to this exact plan. Credit caps still apply. In form mode the app's approval form does this instead.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `planId` | string | yes | The planId from prepare_media_generation that the person said yes to |
+| `acceptUnknownPrice` | boolean | no | Set only when the plan has an item with an unknown price and the person was told so before saying yes |
 
 ### finalize_upload
 

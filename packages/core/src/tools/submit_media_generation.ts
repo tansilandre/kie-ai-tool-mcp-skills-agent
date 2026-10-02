@@ -1,4 +1,5 @@
 import { hashPlanPayload } from "../generation-plan.js";
+import { DEFAULT_SPEND_POLICY, planCredits } from "../spend-policy.js";
 import { SubmitMediaGenerationSchema } from "../types.js";
 import type { ToolContext, ToolDef, ToolResult } from "./types.js";
 
@@ -108,15 +109,35 @@ export const submitMediaGenerationTool: ToolDef<
           `Prepared plan contains unavailable tool(s): ${unavailableTools.join(", ")}.`,
         );
       }
-      if (
-        !(await ctx.db.claimGenerationPlan(
-          planId,
-          stored.requestHash,
-          ctx.approvalContext,
-        ))
-      ) {
+      // The per-plan cap again (it may have been lowered since approval),
+      // then the daily cap and the claim in one transaction, so two plans
+      // can't both take the last of the day's budget.
+      const policy = ctx.spendPolicy ?? DEFAULT_SPEND_POLICY;
+      const credits = planCredits(plan);
+      if (credits !== undefined && credits > policy.maxCreditsPerPlan) {
         throw new Error(
-          "Approved plan is unavailable in this approval context, expired, changed, or already submitted.",
+          `This plan may cost up to ${credits} credits, over the per-plan cap of ${policy.maxCreditsPerPlan} (KIE_AI_MAX_CREDITS_PER_PLAN). Nothing was sent to kie.ai.`,
+        );
+      }
+      const claim = ctx.db.claimGenerationPlanWithinBudget(
+        planId,
+        stored.requestHash,
+        ctx.approvalContext,
+        {
+          itemEstimates: plan.items.map((item) =>
+            item.price.status === "exact" || item.price.status === "estimated"
+              ? item.price.credits
+              : undefined,
+          ),
+          maxPerDay: policy.maxCreditsPerDay,
+          unknownPlaceholder: policy.maxCreditsPerPlan,
+        },
+      );
+      if (!claim.claimed) {
+        throw new Error(
+          claim.reason
+            ? `${claim.reason} Nothing was sent to kie.ai.`
+            : "Approved plan is unavailable in this approval context, expired, changed, or already submitted.",
         );
       }
       const results = await withConcurrency(
@@ -156,6 +177,7 @@ export const submitMediaGenerationTool: ToolDef<
       const failed = results.some((result) => result.error);
       let recordWarning: string | undefined;
       try {
+        ctx.db.settlePlanSpend(planId, results);
         if (failed) await ctx.db.failGenerationPlan(planId, results);
         else await ctx.db.finishGenerationPlan(planId, results);
       } catch (error) {

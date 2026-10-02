@@ -3,8 +3,13 @@ import {
   prepareGenerationPlan,
 } from "../generation-plan.js";
 import { MISSING_API_KEY_MESSAGE } from "../kie-ai-client.js";
+import {
+  autoApproves,
+  checkCaps,
+  DEFAULT_SPEND_POLICY,
+} from "../spend-policy.js";
 import { PrepareMediaGenerationSchema, RunModelSchema } from "../types.js";
-import { requireCatalog } from "./catalog-helpers.js";
+import { jsonResult, requireCatalog } from "./catalog-helpers.js";
 import type {
   PlanApprovalDecision,
   ToolContext,
@@ -81,6 +86,97 @@ function approvalRequiredResult(
   };
 }
 
+async function recordApproval(
+  plan: ReturnType<typeof prepareGenerationPlan>,
+  ctx: ToolContext,
+  _by: "form" | "auto",
+): Promise<boolean> {
+  return ctx.db.approveGenerationPlan(
+    plan.id,
+    plan.requestHash,
+    ctx.approvalContext,
+  );
+}
+
+function approvedResult(
+  plan: ReturnType<typeof prepareGenerationPlan>,
+  message: string,
+): ToolResult {
+  return jsonResult(
+    {
+      success: true,
+      planId: plan.id,
+      plan,
+      status: "approved",
+      approved: true,
+      message: `${message} No provider task was created; submit this planId before it expires.`,
+    },
+    { plan_id: plan.id, status: "approved", approved: true },
+  );
+}
+
+/** Chat mode: the agent shows the plan, and relays the person's yes. */
+function chatApprovalResult(
+  plan: ReturnType<typeof prepareGenerationPlan>,
+  spent: number,
+): ToolResult {
+  const unknown = plan.total.status === "unknown";
+  return jsonResult(
+    {
+      success: true,
+      planId: plan.id,
+      plan,
+      status: "prepared",
+      approved: false,
+      spent_last_24h: spent,
+      next_step: `Show the person every item of this plan with its price${unknown ? " (the price of at least one item is unknown: say so plainly)" : ""}, and ask a plain yes or no. Only after they say yes to this plan, call approve_media_generation with planId "${plan.id}"${unknown ? " and acceptUnknownPrice: true" : ""}, then submit_media_generation. Never approve on their behalf, and never reuse an earlier yes for a plan they haven't seen.`,
+      message:
+        "No provider task was created. The plan waits for the person's yes.",
+    },
+    { plan_id: plan.id, status: "prepared", approved: false },
+  );
+}
+
+/**
+ * The request facts kie.ai's price text depends on. Falls back to the
+ * schema's default, and for duration to the longest allowed value, so the
+ * estimate stays an upper bound when the request leaves them out.
+ */
+function priceInputsFor(
+  input: Record<string, unknown>,
+  fields: Record<
+    string,
+    { default?: unknown; enum?: unknown[]; maximum?: unknown }
+  >,
+): { resolution?: string; durationSeconds?: number } {
+  const resolution = input.resolution ?? fields.resolution?.default;
+  const durationKey = ["duration", "duration_seconds", "seconds"].find(
+    (key) => key in input || key in fields,
+  );
+  let durationSeconds: number | undefined;
+  if (durationKey) {
+    const given = Number(input[durationKey]);
+    if (Number.isFinite(given) && given > 0) durationSeconds = given;
+    else {
+      const field = fields[durationKey] ?? {};
+      const options = (field.enum ?? [])
+        .map(Number)
+        .filter((n) => Number.isFinite(n));
+      const max =
+        options.length > 0
+          ? Math.max(...options)
+          : Number.isFinite(Number(field.maximum))
+            ? Number(field.maximum)
+            : Number(field.default);
+      if (Number.isFinite(max) && max > 0) durationSeconds = max;
+    }
+  }
+  return {
+    ...(typeof resolution === "string" ? { resolution } : {}),
+    ...(durationSeconds ? { durationSeconds } : {}),
+  };
+}
+
 /**
  * run_model items are checked against the model's live schema before a plan
  * exists, so a bad input fails here instead of after approval. One at a time:
@@ -111,7 +207,12 @@ async function catalogDetails(
       );
     }
     const entry = await catalog.getModel(check.shape.model);
+    const fields = (check.shape.inputSchema?.properties ?? {}) as Record<
+      string,
+      { default?: unknown; enum?: unknown[]; maximum?: unknown }
+    >;
     details.push({
+      priceInputs: priceInputsFor(input, fields),
       // kie.ai's listing says what the model offers, not what this request
       // does (Seedance 1.5 Pro is listed only as image-to-video but also does
       // text-to-video), so label it as the listing.
@@ -157,11 +258,53 @@ export const prepareMediaGenerationTool: ToolDef<
         expiresInSeconds: request.expiresInSeconds,
         itemDetails,
       });
+      // Caps hold in every approval mode: a plan over them is not stored,
+      // so it can never be approved or submitted.
+      const policy = ctx.spendPolicy ?? DEFAULT_SPEND_POLICY;
+      const spent = ctx.db.spentSince(
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        policy.maxCreditsPerPlan,
+      );
+      const caps = checkCaps(plan, policy, spent, {
+        // A person can still accept an unknown price when approving.
+        acceptUnknownPrice: true,
+      });
+      if (!caps.ok) {
+        return {
+          ...jsonResult({
+            success: false,
+            status: "blocked",
+            plan,
+            problems: caps.problems,
+            spent_last_24h: spent,
+            message:
+              "This plan is over a credit cap, so it was not saved and can't be approved. Nothing was sent to kie.ai.",
+          }),
+          isError: true,
+        };
+      }
       await ctx.db.createGenerationPlan(plan, ctx.approvalContext);
+
+      if (autoApproves(plan, policy)) {
+        return (await recordApproval(plan, ctx, "auto"))
+          ? approvedResult(
+              plan,
+              "Approved automatically: the estimate is within KIE_AI_AUTO_APPROVE_CREDITS.",
+            )
+          : pendingResult(
+              plan,
+              "Approval could not be recorded because the plan expired, changed, or was no longer prepared.",
+            );
+      }
+      if (policy.approval === "chat") {
+        return chatApprovalResult(plan, spent);
+      }
       if (!ctx.requestPlanApproval) {
         return pendingResult(
           plan,
-          "This transport cannot request approval during preparation. Use its explicit approval boundary before submission.",
+          policy.approval === "auto"
+            ? `This plan is above the auto-approval limit (${policy.autoApproveCredits} credits) or has an unknown price, and this app can't show an approval form. A person must approve it: set KIE_AI_APPROVAL=chat, or use the CLI in a terminal.`
+            : "This app can't show an approval form. A person can approve the plan in a terminal with the CLI, or the person who runs the server can set KIE_AI_APPROVAL=chat so the agent relays their yes.",
         );
       }
 
@@ -181,13 +324,7 @@ export const prepareMediaGenerationTool: ToolDef<
         return pendingResult(plan, decision.reason);
       }
 
-      if (
-        !(await ctx.db.approveGenerationPlan(
-          plan.id,
-          plan.requestHash,
-          ctx.approvalContext,
-        ))
-      ) {
+      if (!(await recordApproval(plan, ctx, "form"))) {
         return pendingResult(
           plan,
           "Approval could not be recorded because the plan expired, changed, or was no longer prepared.",
