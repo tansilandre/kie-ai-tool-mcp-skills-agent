@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Creative skills: `image-prompts`, `video-prompts`, `product-photoshoot`, `youtube-thumbnail` and
+  `short-video`, adapted from higgsfield-ai/skills (MIT) and the AI Videographer harness for kie.ai
+  models and this toolkit's plan workflow; kie.ai field notes in `generate-media`. Cross-checked by
+  a separate reviewer for contradictions and unverified claims.
+- `npm run skills:check` (also in CI): frontmatter, description triggers, line limits, links that
+  stay inside each skill, no orphaned references.
 - `install.sh` (macOS, Linux) and `install.ps1` (Windows, not yet tested on Windows): clone or
   update into `~/.kie-ai-tool`, check Node.js, print the setup for Claude Code, Codex and any MCP
   app; `--register` installs the Claude Code plugin and adds the skills to Codex.

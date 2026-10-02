@@ -24,7 +24,8 @@
     "pricing:audit": "npm run build -w @kie-ai-tool/core && node scripts/audit-pricing.mjs",
     "pricing:refresh": "node scripts/refresh-pricing.mjs",
     "pricing:refresh:test": "node --test scripts/__tests__/refresh-pricing.test.mjs",
-    "bundle:plugin": "node scripts/bundle-plugin.mjs"
+    "bundle:plugin": "node scripts/bundle-plugin.mjs",
+    "skills:check": "node scripts/validate-skills.mjs"
   },
   "author": "Andre Tansil (https://github.com/tansilandre)",
   "contributors": [

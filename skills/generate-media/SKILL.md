@@ -122,3 +122,8 @@ not scrape pages to invent rates, add estimates, or add a fixed USD conversion.
 Current exact formulas are intentionally limited to Nano Banana 2 Lite at four credits
 per image and MiniMax H3 reference-to-video at 768p, at 16 credits per second. Every
 other request is `unknown` until verified.
+
+## Field notes
+
+Before planning work on a model, skim [kie.ai field notes](references/kie-field-notes.md): API
+errors, file lifetimes, content-filter rewording and per-model traps seen on the live API.

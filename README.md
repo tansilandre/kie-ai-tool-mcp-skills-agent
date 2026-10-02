@@ -37,9 +37,22 @@ price, wait for your yes, generate, and hand back the files.
 | CLI | [`packages/cli`](packages/cli) | The same tools from the terminal (`kie-cli <tool> --flags`) |
 | OpenAI-compatible server | [`packages/openai`](packages/openai) | Selected image and video models behind OpenAI-shaped routes |
 | Shared core | [`packages/core`](packages/core) | kie.ai client, tool registry, pricing, plans, task store |
-| Skills | [`skills/`](skills) | Instructions agents load to use the toolkit well |
+| Skills | [`skills/`](skills) | What agents load to use the toolkit well (below) |
 | Agent | [`agents/kie-director.md`](agents/kie-director.md) | A ready-made agent that plans, prices, gets your approval, produces and checks media |
 | Plugin bundles | [`bundle/`](bundle) | The MCP server and CLI as single files with no dependencies, so a plain clone runs |
+
+## Skills
+
+| Skill | For |
+|---|---|
+| [`generate-media`](skills/generate-media/SKILL.md) | The core workflow: find a model, plan, get approval, generate, check; kie.ai field notes |
+| [`image-prompts`](skills/image-prompts/SKILL.md) | Prompts for GPT Image 2, Nano Banana and Seedream: edits, text in images, reference sheets, storyboard frames |
+| [`video-prompts`](skills/video-prompts/SKILL.md) | Motion prompts for Veo 3.1, Seedance, Gemini Omni and Kling, lip-sync, dialogue fit, diagnosing bad clips |
+| [`product-photoshoot`](skills/product-photoshoot/SKILL.md) | E-commerce and ad images from real product photos, keeping the product faithful |
+| [`youtube-thumbnail`](skills/youtube-thumbnail/SKILL.md) | Truthful, high-contrast 16:9 thumbnails with the creator's face and a text overlay |
+| [`short-video`](skills/short-video/SKILL.md) | A finished vertical reel or explainer: script, look and sequence reviews as images, clips, voice, ffmpeg assembly |
+
+The [`kie-director`](agents/kie-director.md) agent uses them to take a brief to finished files.
 
 ## Install
 

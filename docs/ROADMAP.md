@@ -64,7 +64,8 @@ cheapest settings only (gpt-image-2 at 1K, Veo 3.1 Lite at 720p), as Andre allow
    anything under a credit limit the human set). Per-plan and per-day credit caps enforced in code
    for every mode. Prices from kie.ai's catalog, the real cost read back from each finished task,
    and a balance check before submitting. Reviewed by a separate agent told to break it.
-5. **Creative skills.** Adapted from higgsfield-ai/skills (MIT) for kie.ai models: image prompts,
+5. ✅ **Creative skills.** (PR #8. Brand kit not ported yet: it needs Recraft vector output checked on
+   kie.ai.) Adapted from higgsfield-ai/skills (MIT) for kie.ai models: image prompts,
    video prompts, product photoshoot, YouTube thumbnail, brand kit, and a short-video / explainer
    pipeline. Plus kie.ai field notes: traps verified on the live API (upload host, Omni input
    rules, content-filter 500s, the 20-minute task limit, key model allowlists).
