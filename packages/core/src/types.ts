@@ -2312,6 +2312,7 @@ export type ListModelsRequest = z.infer<typeof ListModelsSchema>;
 // Live kie.ai catalog (GET /api/v1/models and per-model endpoints). Free calls.
 const CatalogModelIdSchema = z
   .string()
+  .trim()
   .min(1)
   .max(200)
   .describe(
@@ -2379,6 +2380,12 @@ export const RunModelSchema = z.object({
     .url()
     .optional()
     .describe("Optional webhook kie.ai calls when the task finishes"),
+  allowExtraFields: z
+    .boolean()
+    .optional()
+    .describe(
+      "Send input fields the model's schema doesn't list. Off by default because a misspelled field is ignored by kie.ai and you pay for its default; turn on only when kie.ai's schema is missing a field you know exists",
+    ),
 });
 export type RunModelRequest = z.infer<typeof RunModelSchema>;
 

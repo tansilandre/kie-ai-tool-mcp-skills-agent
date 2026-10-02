@@ -13,6 +13,7 @@
 // are cached on disk and a 429 is retried with back-off, falling back to a
 // stale cached copy when one exists.
 
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -241,10 +242,13 @@ export class KieCatalog {
   private async writeCachedSchema(info: ModelSchemaInfo): Promise<void> {
     try {
       const dir = join(this.cacheDir, "schemas");
-      await mkdir(dir, { recursive: true });
+      // Private to the user: a schema decides what gets validated.
+      await mkdir(dir, { recursive: true, mode: 0o700 });
       const file = join(dir, cacheFileName(info.model));
-      const temp = `${file}.${process.pid}.tmp`;
-      await writeFile(temp, JSON.stringify(info));
+      // Unpredictable name, created exclusively, so a planted link can't
+      // redirect the write.
+      const temp = `${file}.${randomUUID()}.tmp`;
+      await writeFile(temp, JSON.stringify(info), { flag: "wx", mode: 0o600 });
       await rename(temp, file);
     } catch {
       // The cache is an optimisation; a read-only disk must not break a call.
@@ -252,7 +256,9 @@ export class KieCatalog {
   }
 
   private isFresh(info: ModelSchemaInfo): boolean {
-    return this.now() - Date.parse(info.fetchedAt) < this.schemaTtlMs;
+    const age = this.now() - Date.parse(info.fetchedAt);
+    // A date in the future (or no date) is not trusted as fresh.
+    return Number.isFinite(age) && age >= 0 && age < this.schemaTtlMs;
   }
 
   /** The model's endpoint and input schema, from memory, disk or kie.ai. */
@@ -315,6 +321,7 @@ export class KieCatalog {
   async checkInput(
     model: string,
     input: Record<string, unknown>,
+    options: { allowExtraFields?: boolean } = {},
   ): Promise<InputCheck> {
     const shape = await this.getSchema(model);
     if (shape.kind !== "task") {
@@ -328,16 +335,19 @@ export class KieCatalog {
       };
     }
     if (!shape.inputSchema) {
+      // Fail closed: an unchecked input could spend credits on a bad request.
       return {
-        ok: true,
-        errors: [],
-        warnings: [
-          "kie.ai's schema for this model has no input definition, so the input could not be checked.",
+        ok: false,
+        errors: [
+          `kie.ai's schema for "${shape.model}" has no input definition, so the input can't be checked. Use a hand-tuned tool from list_models, or check the model page at https://kie.ai/market.`,
         ],
+        warnings: [],
         shape,
       };
     }
-    const result = checkAgainstSchema(input, shape.inputSchema);
+    const result = checkAgainstSchema(input, shape.inputSchema, "", 0, {
+      strictFields: !options.allowExtraFields,
+    });
     return {
       ok: result.errors.length === 0,
       errors: result.errors,

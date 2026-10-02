@@ -105,7 +105,9 @@ path for MCP clients that don't support forms.
 | `KIE_AI_API_KEY` | yes | Your kie.ai API key. `KIE_API_KEY`, the name kie.ai's own docs use, works too |
 | `KIE_AI_CACHE_DIR` | no | Where model schemas are cached (default `~/.kie-ai/cache`, kept 24 hours) |
 | `KIE_AI_ENABLED_TOOLS` | no | Comma-separated tool names to load, to keep the agent's context small |
-| `KIE_AI_TOOL_CATEGORIES` | no | Load whole categories: `image`, `video`, `audio`, `utility` |
+| `KIE_AI_TOOL_CATEGORIES` | no | Load whole categories: `image`, `video`, `audio`, `catalog` (`run_model`), `utility` |
+| `KIE_AI_DISABLED_TOOLS` | no | Tools to hide. Disabling a model tool such as `veo3_generate_video` does not stop the same model through `run_model`; disable `run_model` too |
+| `KIE_AI_ALLOW_DIRECT_GENERATION` | no | `true` lets every paid tool, including `run_model` with any catalog model, run without a plan. Leave it off |
 | `KIE_AI_DB_PATH` | no | Where tasks and plans are stored (default `~/.kie-ai/tasks.db`) |
 | `KIE_AI_CALLBACK_URL` | no | Your own webhook for task completion |
 

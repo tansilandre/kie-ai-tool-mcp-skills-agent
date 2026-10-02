@@ -143,12 +143,40 @@ export interface SchemaCheckResult {
   warnings: string[];
 }
 
+export interface SchemaCheckOptions {
+  /**
+   * Treat a field the schema doesn't list as an error instead of a warning.
+   * A misspelled field (`resolutoin`) is otherwise sent to kie.ai, which
+   * ignores it and bills for its default.
+   */
+  strictFields?: boolean;
+}
+
+// Line breaks and other control characters in a field name could fake extra
+// lines in an approval message.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
+const CONTROL_CHARS = /[\u0000-\u001f\u007f\u2028\u2029]/;
+
+function childPath(path: string, key: string): string {
+  const part = /^[A-Za-z0-9_-]+$/.test(key) ? key : JSON.stringify(key);
+  return path ? `${path}.${part}` : part;
+}
+
+function ownKeys(record: unknown): string[] {
+  return isObject(record) ? Object.keys(record) : [];
+}
+
+function hasOwnKey(record: unknown, key: string): boolean {
+  return isObject(record) && Object.hasOwn(record, key);
+}
+
 /** Checks `value` against a dereferenced schema. Unknown keywords are ignored. */
 export function checkAgainstSchema(
   value: unknown,
   schema: JsonSchema,
   path = "",
   depth = 0,
+  options: SchemaCheckOptions = {},
 ): SchemaCheckResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -160,12 +188,11 @@ export function checkAgainstSchema(
     if (Array.isArray(variants) && variants.length > 0) {
       const provided = isObject(value) ? Object.keys(value) : [];
       const results = variants.filter(isObject).map((variant) => ({
-        ...checkAgainstSchema(value, variant, path, depth + 1),
+        ...checkAgainstSchema(value, variant, path, depth + 1, options),
         // How many of the caller's fields this variant knows: the best hint
         // of which shape the caller meant.
-        overlap: provided.filter(
-          (key) => isObject(variant.properties) && key in variant.properties,
-        ).length,
+        overlap: provided.filter((key) => hasOwnKey(variant.properties, key))
+          .length,
       }));
       if (!results.some((result) => result.errors.length === 0)) {
         const closest = results.reduce((best, result) =>
@@ -184,7 +211,7 @@ export function checkAgainstSchema(
   }
   if (Array.isArray(schema.allOf)) {
     for (const part of schema.allOf.filter(isObject)) {
-      const result = checkAgainstSchema(value, part, path, depth + 1);
+      const result = checkAgainstSchema(value, part, path, depth + 1, options);
       errors.push(...result.errors);
       warnings.push(...result.warnings);
     }
@@ -201,7 +228,7 @@ export function checkAgainstSchema(
   if (schema.nullable === true) types.push("null");
   if (types.length > 0 && !types.some((t) => matchesType(value, t))) {
     errors.push(
-      `${where} must be ${types.join(" or ")}, got ${typeOf(value)}${typeof value === "string" ? ` "${value}"` : ""}`,
+      `${where} must be ${types.join(" or ")}, got ${typeOf(value)}${typeof value === "string" ? ` ${JSON.stringify(value.slice(0, 80))}` : ""}`,
     );
     return { errors, warnings };
   }
@@ -263,6 +290,7 @@ export function checkAgainstSchema(
           schema.items as JsonSchema,
           `${path}[${index}]`,
           depth + 1,
+          options,
         );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
@@ -274,32 +302,45 @@ export function checkAgainstSchema(
     const properties = isObject(schema.properties)
       ? (schema.properties as Record<string, unknown>)
       : {};
+    const known = ownKeys(properties);
     const required = Array.isArray(schema.required)
       ? schema.required.filter((r): r is string => typeof r === "string")
       : [];
     for (const key of required) {
-      if (value[key] === undefined) {
-        errors.push(`${path ? `${path}.` : ""}${key} is required`);
+      if (!Object.hasOwn(value, key) || value[key] === undefined) {
+        errors.push(`${childPath(path, key)} is required`);
       }
     }
     for (const [key, item] of Object.entries(value)) {
-      const child = `${path ? `${path}.` : ""}${key}`;
-      const propertySchema = properties[key];
+      const child = childPath(path, key);
+      if (CONTROL_CHARS.test(key)) {
+        errors.push(
+          `${child} is not a valid field name (it contains a line break or control character)`,
+        );
+        continue;
+      }
+      // Own properties only: `__proto__` must not resolve to Object.prototype.
+      const propertySchema = hasOwnKey(properties, key)
+        ? properties[key]
+        : undefined;
       if (isObject(propertySchema)) {
         const result = checkAgainstSchema(
           item,
           propertySchema,
           child,
           depth + 1,
+          options,
         );
         errors.push(...result.errors);
         warnings.push(...result.warnings);
-      } else if (Object.keys(properties).length > 0) {
-        if (schema.additionalProperties === false) {
-          errors.push(`${child} is not a field this model accepts`);
+      } else if (known.length > 0) {
+        if (schema.additionalProperties === false || options.strictFields) {
+          errors.push(
+            `${child} is not a field this model accepts; known fields: ${known.join(", ")}`,
+          );
         } else {
           warnings.push(
-            `${child} is not in the model's schema and may be ignored; known fields: ${Object.keys(properties).join(", ")}`,
+            `${child} is not in the model's schema and may be ignored; known fields: ${known.join(", ")}`,
           );
         }
       }

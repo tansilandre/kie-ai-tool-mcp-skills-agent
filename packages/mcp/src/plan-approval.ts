@@ -9,6 +9,23 @@ import {
   inputRequired,
 } from "@modelcontextprotocol/server";
 
+/**
+ * Text from the agent (field names, settings) or from kie.ai (price text) is
+ * untrusted: flatten it to one line so it can't fake extra lines, such as a
+ * second "Price:" line, in the message the human approves.
+ */
+export function oneLine(text: string, max = 2000): string {
+  const flat = text
+    .replace(/[\r\n\u2028\u2029]+/g, " / ")
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping them is the point
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return flat.length > max
+    ? `${flat.slice(0, max)}… [cut; full price list at https://kie.ai/pricing]`
+    : flat;
+}
+
 function priceSummary(plan: PreparedGenerationPlan): string {
   return plan.total.status === "exact"
     ? `${plan.total.credits} credits total (verified exact quote)`
@@ -20,17 +37,22 @@ export function formatPlanApprovalMessage(
 ): string {
   const items = plan.items
     .map((item) => {
+      // The whole price text: its first line alone can quote the cheapest
+      // tier of a model whose request costs far more.
       const price =
         item.price.status === "exact"
           ? `${item.price.credits} credits`
           : item.price.note
-            ? `no exact quote; kie.ai lists: ${item.price.note.split("\n")[0]}`
+            ? `no exact quote; kie.ai's full price text: ${oneLine(item.price.note)}`
             : "price unknown";
       return [
-        `${item.index + 1}. ${item.tool}: ${item.model}, ${item.mode}, ${item.outputCount} output(s), ${price}`,
-        `Resolved settings: ${JSON.stringify(item.effectiveSettings)}`,
+        oneLine(
+          `${item.index + 1}. ${item.tool}: ${item.model}, ${item.mode}, ${item.outputCount} output(s), ${price}`,
+          4000,
+        ),
+        `Resolved settings: ${oneLine(JSON.stringify(item.effectiveSettings), 4000)}`,
         ...(item.warnings?.length
-          ? [`Warnings: ${item.warnings.join("; ")}`]
+          ? [`Warnings: ${oneLine(item.warnings.join("; "), 2000)}`]
           : []),
       ].join("\n");
     })

@@ -22,7 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `get_task_status` and `wait_for_task` return every result URL of a task, not only
   the first, and treat kie.ai's `queuing` and `generating` states as in progress.
 - The CLI refuses to run `run_model` outside a plan unless
-  `KIE_AI_ALLOW_DIRECT_GENERATION=true`, matching the MCP server.
+  `KIE_AI_ALLOW_DIRECT_GENERATION=true`. CLI approval is still the `--approve`
+  flag, which any process with a shell can type; human-only approval and
+  credit caps come in roadmap step 4.
+- `run_model` refuses input fields the model's schema doesn't list (a typo would
+  otherwise be ignored by kie.ai and billed at its default) unless
+  `allowExtraFields` is set, and refuses a model whose schema has no input
+  definition.
+
+### Security
+- The MCP approval message flattens agent- and kie.ai-supplied text to one line,
+  so a field name or price text can't fake extra lines such as a second "Price:".
+  It shows kie.ai's full price text instead of its first line, which could quote
+  the cheapest tier of a much dearer request.
+- The schema cache refuses entries dated in the future, is created private to
+  the user (0700), and writes through unpredictable temp files.
 - Forked from [felores/kie-cli-mcp](https://github.com/felores/kie-cli-mcp) at `44c7701` as
   kie-ai-tool-mcp-skills-agent, keeping its full git history. Package names moved from
   `@felores/*` to `@kie-ai-tool/*` (`core`, `mcp`, `cli`, `openai-server`); binary names are

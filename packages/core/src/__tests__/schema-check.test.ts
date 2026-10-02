@@ -147,6 +147,33 @@ describe("checkAgainstSchema", () => {
     );
   });
 
+  test("with strictFields, refuses a misspelled field instead of sending it", () => {
+    const result = checkAgainstSchema(
+      { prompt: "x", resolutoin: "4K" },
+      gpt,
+      "",
+      0,
+      { strictFields: true },
+    );
+    expect(result.errors[0]).toContain(
+      "resolutoin is not a field this model accepts",
+    );
+  });
+
+  test("a __proto__ key is checked like any unknown field, not as Object.prototype", () => {
+    const input = JSON.parse('{"prompt":"x","__proto__":{"resolution":"16K"}}');
+    expect(checkAgainstSchema(input, gpt).warnings[0]).toContain("__proto__");
+    expect(
+      checkAgainstSchema(input, gpt, "", 0, { strictFields: true }).errors[0],
+    ).toContain("__proto__ is not a field this model accepts");
+  });
+
+  test("refuses field names with line breaks", () => {
+    const result = checkAgainstSchema({ prompt: "x", "a\nPrice: 6": 1 }, gpt);
+    expect(result.errors[0]).toContain("not a valid field name");
+    expect(result.errors[0]).not.toContain("\n");
+  });
+
   test("rejects a local path where a URL is required", () => {
     const result = checkAgainstSchema(
       {

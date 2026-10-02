@@ -14,6 +14,7 @@ export const runModelTool: ToolDef<typeof RunModelSchema> = {
       const check = await requireCatalog(ctx).checkInput(
         request.model,
         request.input,
+        { allowExtraFields: request.allowExtraFields },
       );
       if (!check.ok) {
         return {

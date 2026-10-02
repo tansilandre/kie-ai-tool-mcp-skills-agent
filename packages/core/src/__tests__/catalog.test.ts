@@ -193,6 +193,59 @@ describe("KieCatalog schemas", () => {
   });
 });
 
+describe("KieCatalog cache and fail-closed checks", () => {
+  test("a cache entry dated in the future is not trusted", async () => {
+    const { mkdirSync, writeFileSync } = await import("node:fs");
+    mkdirSync(join(cacheDir, "schemas"), { recursive: true });
+    writeFileSync(
+      join(cacheDir, "schemas", "gpt-image-2-text-to-image.json"),
+      JSON.stringify({
+        model: "gpt-image-2-text-to-image",
+        fetchedAt: "2099-01-01T00:00:00.000Z",
+        kind: "task",
+        path: "/api/v1/jobs/createTask",
+        method: "POST",
+      }),
+    );
+    const { catalog, calls } = catalogWith({
+      "/models/gpt-image-2-text-to-image/schema": [
+        fixture("schema_gpt-image-2-text-to-image.json"),
+      ],
+    });
+    const check = await catalog.checkInput("gpt-image-2-text-to-image", {
+      prompt: "x",
+      resolution: "16K",
+    });
+    expect(calls).toEqual(["/models/gpt-image-2-text-to-image/schema"]);
+    expect(check.ok).toBe(false);
+  });
+
+  test("a model whose schema has no input definition is refused, not waved through", async () => {
+    const { catalog } = catalogWith({
+      "/models/bare/schema": [
+        {
+          code: 200,
+          msg: "success",
+          data: {
+            model: "bare",
+            openapi: { paths: { "/api/v1/jobs/createTask": { post: {} } } },
+          },
+        },
+      ],
+    });
+    const check = await catalog.checkInput("bare", { anything: "goes" });
+    expect(check.ok).toBe(false);
+    expect(check.errors[0]).toContain("no input definition");
+  });
+
+  test("model ids are trimmed before use", async () => {
+    const { RunModelSchema } = await import("../types.js");
+    expect(
+      RunModelSchema.parse({ model: "  veo-3-1\n", input: {} }).model,
+    ).toBe("veo-3-1");
+  });
+});
+
 describe("KieCatalog checks, price, health and balance", () => {
   test("rejects run_model for a model outside the task API", async () => {
     const { catalog } = catalogWith({
@@ -366,6 +419,7 @@ describe("run_model and plans", () => {
             args: {
               model: "gpt-image-2-text-to-image",
               input: { prompt: "a leaf", resolution: "1K", aspectRatio: "1:1" },
+              allowExtraFields: true,
             },
           },
         ],
@@ -384,6 +438,68 @@ describe("run_model and plans", () => {
     expect(item.price.note).toContain("6 credits");
     expect(item.warnings[0]).toContain("aspectRatio");
     expect(createMarketTask).not.toHaveBeenCalled();
+  });
+
+  test("refuses a misspelled field by default and names the known fields", async () => {
+    const { ctx, createMarketTask } = context(routes());
+    const result = await runModelTool.run(
+      {
+        model: "gpt-image-2-text-to-image",
+        input: { prompt: "a leaf", resolutoin: "4K" },
+      },
+      ctx,
+    );
+    expect(result.isError).toBe(true);
+    expect(read(result).problems[0]).toContain(
+      "resolutoin is not a field this model accepts",
+    );
+    expect(read(result).problems[0]).toContain("resolution");
+    expect(createMarketTask).not.toHaveBeenCalled();
+  });
+
+  test("counts outputs from the model's input", async () => {
+    const { ctx } = context(routes());
+    const result = await prepareMediaGenerationTool.run(
+      {
+        items: [
+          {
+            tool: "run_model",
+            args: {
+              model: "gpt-image-2-text-to-image",
+              input: { prompt: "a leaf", n: 4 },
+              allowExtraFields: true,
+            },
+          },
+        ],
+      },
+      ctx,
+    );
+    expect(read(result).plan.items[0].outputCount).toBe(4);
+  });
+
+  test("makes no catalog calls when run_model is not enabled", async () => {
+    const { ctx, calls } = context(routes());
+    const disabled = {
+      ...ctx,
+      getTool: (name: string) =>
+        name === "run_model" ? undefined : getTool(name),
+    };
+    const result = await prepareMediaGenerationTool.run(
+      {
+        items: [
+          {
+            tool: "run_model",
+            args: {
+              model: "gpt-image-2-text-to-image",
+              input: { prompt: "x" },
+            },
+          },
+        ],
+      },
+      disabled,
+    );
+    expect(read(result).error).toContain("run_model is not enabled");
+    expect(calls).toEqual([]);
   });
 
   test("refuses to prepare a plan whose input fails the schema", async () => {

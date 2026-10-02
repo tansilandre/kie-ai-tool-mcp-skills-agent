@@ -135,9 +135,11 @@ function build() {
         return y;
       },
       async (argv) => {
-        // run_model is new in this fork, so it starts out behind the same
-        // plan approval the MCP server enforces. (The older per-model commands
-        // keep upstream's direct behaviour until spend controls land.)
+        // run_model must go through a plan. In the CLI, approval is the
+        // --approve flag on submit_media_generation, which anything with a
+        // shell can type: it stops accidents, not a determined agent. A
+        // human-only approval step and credit caps are roadmap step 4. (The
+        // older per-model commands keep upstream's direct behaviour until then.)
         if (
           tool.category === "catalog" &&
           process.env.KIE_AI_ALLOW_DIRECT_GENERATION !== "true"

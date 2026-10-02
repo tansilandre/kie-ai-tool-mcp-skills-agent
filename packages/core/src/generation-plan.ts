@@ -194,8 +194,22 @@ function resolveModel(tool: string, parsed: Record<string, unknown>): string {
   return catalog?.model ?? tool;
 }
 
-function resolveOutputCount(args: Record<string, unknown>): number {
-  for (const key of ["max_images", "num_images", "videoBatchSize", "repeat"]) {
+// Output-count fields that catalog models use inside `input`.
+const CATALOG_COUNT_FIELDS = [
+  "n",
+  "num_images",
+  "num_outputs",
+  "number_of_images",
+  "max_images",
+  "batch_size",
+  "count",
+];
+
+function resolveOutputCount(
+  args: Record<string, unknown>,
+  keys = ["max_images", "num_images", "videoBatchSize", "repeat"],
+): number {
+  for (const key of keys) {
     const value = args[key];
     const count = typeof value === "number" ? value : Number(value);
     if (Number.isInteger(count) && count > 0) return count;
@@ -275,7 +289,13 @@ export function prepareGenerationPlan(
     const details = options.itemDetails?.[index];
     const model = resolveModel(requested.tool, parsed);
     const mode = details?.mode ?? resolveGenerationMode(requested.tool, parsed);
-    const outputCount = resolveOutputCount(parsed);
+    const outputCount =
+      requested.tool === "run_model"
+        ? resolveOutputCount(
+            (parsed.input ?? {}) as Record<string, unknown>,
+            CATALOG_COUNT_FIELDS,
+          )
+        : resolveOutputCount(parsed);
     const quoted = priceRequest(
       requested.tool,
       { ...parsed, outputCount },

@@ -95,9 +95,12 @@ async function catalogDetails(
       details.push(undefined);
       continue;
     }
+    if (!ctx.getTool("run_model")) {
+      throw new Error("run_model is not enabled on this server.");
+    }
     const catalog = requireCatalog(ctx);
-    const { model, input } = RunModelSchema.parse(item.args);
-    const check = await catalog.checkInput(model, input);
+    const { model, input, allowExtraFields } = RunModelSchema.parse(item.args);
+    const check = await catalog.checkInput(model, input, { allowExtraFields });
     if (!check.ok) {
       const notes = check.warnings.length
         ? ` Also: ${check.warnings.join("; ")}.`
