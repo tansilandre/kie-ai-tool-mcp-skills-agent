@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.0 - 2026-10-02
+
+First release under the `@kie-ai-tool` npm scope: `@kie-ai-tool/mcp` (command `kie-mcp`),
+`@kie-ai-tool/cli` (command `kie`) and `@kie-ai-tool/openai-server`, published from GitHub Actions
+with npm trusted publishing and provenance. Version numbers restart at 0.1.0 for the new package
+names; the upstream versions below (MCP 5.1.0, CLI 0.9.0, OpenAI transport 0.7.0) were felores's.
 
 ### Added
 - Creative skills: `image-prompts`, `video-prompts`, `product-photoshoot`, `youtube-thumbnail` and

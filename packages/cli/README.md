@@ -11,18 +11,18 @@ independently.
 
 ## Install
 
-> **Not on npm yet.** This package is part of [kie-ai-tool-mcp-skills-agent](https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent). Until it is published, build it from source as the root README explains.
+Needs Node.js 22.13 or newer.
 
 ```bash
-git clone https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent
-cd kie-ai-tool-mcp-skills-agent && npm ci && npm run build
-node packages/cli/dist/index.js --help
+npm install -g @kie-ai-tool/cli      # then: kie --help
+# or without installing:
+npx @kie-ai-tool/cli --help
 ```
 
 ## Setup
 
 ```bash
-export KIE_AI_API_KEY="your-key"
+export KIE_API_KEY="your-key"       # Windows PowerShell: $env:KIE_API_KEY = "your-key"
 ```
 
 Optional: `KIE_AI_BASE_URL`, `KIE_AI_TIMEOUT`, `KIE_AI_DB_PATH`, `KIE_AI_CALLBACK_URL`.
@@ -35,20 +35,20 @@ unsupported-adapter guidance in the CLI.
 
 ```bash
 # List every tool (commands map 1:1 to the MCP tools)
-kie-cli --help
+kie --help
 
 # See the flags for a tool (derived from its schema)
-kie-cli nano_banana_image --help
+kie nano_banana_image --help
 
 # Generate an image
-kie-cli nano_banana_image --prompt "a red panda coding at night" --resolution 2K
+kie nano_banana_image --prompt "a red panda coding at night" --resolution 2K
 
 # Generate a video, then poll the task
-kie-cli veo3_generate_video --prompt "drone shot over a canyon at sunrise"
-kie-cli get_task_status --task_id <id>
+kie veo3_generate_video --prompt "drone shot over a canyon at sunrise"
+kie get_task_status --task_id <id>
 
 # List recent tasks
-kie-cli list_tasks --limit 10
+kie list_tasks --limit 10
 ```
 
 ### JSON output
@@ -57,14 +57,14 @@ Add `--json` to print the raw tool result (machine-readable, ideal for piping to
 `jq` or other agents):
 
 ```bash
-kie-cli list_tasks --json | jq '.tasks'
+kie list_tasks --json | jq '.tasks'
 ```
 
 Tools that return a `success: false` payload set a non-zero exit code.
 
 ## Available tools
 
-Run `kie-cli --help` for the current list. Tools are grouped by category
+Run `kie --help` for the current list. Tools are grouped by category
 (`image`, `video`, `audio`, `utility`) and include Nano Banana, Veo3, Suno,
 ElevenLabs, ByteDance Seedance 2.5/Seedream, Qwen, Runway Aleph, Midjourney, Wan,
 MiniMax H3 (Hailuo 03), Kling, GPT Image 2, Flux Kontext, Recraft, Ideogram, Topaz, HappyHorse
@@ -73,3 +73,9 @@ and more.
 ## License
 
 MIT
+
+## Spending
+
+Every paid command runs through a plan: `prepare_media_generation`, your approval (in a terminal,
+`submit_media_generation --planId <id>` shows the plan and asks you to type a code), then the
+submit. Credit caps apply. See the [main README](https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent#how-spending-works).

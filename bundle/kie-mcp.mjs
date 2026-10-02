@@ -60046,7 +60046,7 @@ var KieAiMcpServer = class _KieAiMcpServer {
   // TOOL_CATEGORIES (above) only drives the optional KIE_AI_TOOL_CATEGORIES filter;
   // a tool missing from it can still run, it just isn't selectable by category.
   static ALL_TOOLS = TOOL_REGISTRY.map((t) => t.name);
-  static VERSION = "5.1.0";
+  static VERSION = "0.1.0";
   constructor() {
     this.config = {
       apiKey: apiKeyFromEnv(),

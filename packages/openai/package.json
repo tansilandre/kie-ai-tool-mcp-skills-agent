@@ -1,6 +1,6 @@
 {
   "name": "@kie-ai-tool/openai-server",
-  "version": "0.7.0",
+  "version": "0.1.0",
   "description": "OpenAI-compatible HTTP transport for selected Kie.ai image and video models.",
   "type": "module",
   "main": "dist/index.js",
@@ -34,11 +34,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent.git"
+    "url": "git+https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent.git",
+    "directory": "packages/openai"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "files": [
     "dist",
@@ -60,5 +62,9 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "homepage": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent#readme",
+  "bugs": {
+    "url": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent/issues"
   }
 }

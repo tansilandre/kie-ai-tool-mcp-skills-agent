@@ -1,10 +1,10 @@
 {
   "name": "@kie-ai-tool/mcp",
-  "version": "5.1.0",
+  "version": "0.1.0",
   "description": "MCP server for Kie.ai APIs: image, video, music and speech generation across Nano Banana, Veo3, Suno, ElevenLabs, ByteDance, Qwen, Runway, Midjourney, Wan, MiniMax H3, Kling, GPT Image 2, Flux Kontext, Recraft, Ideogram, Topaz, HappyHorse and more.",
   "main": "dist/index.js",
   "bin": {
-    "kie-ai-mcp-server": "dist/index.js"
+    "kie-mcp": "dist/index.js"
   },
   "type": "module",
   "scripts": {
@@ -50,7 +50,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent.git"
+    "url": "git+https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent.git",
+    "directory": "packages/mcp"
   },
   "homepage": "https://github.com/tansilandre/kie-ai-tool-mcp-skills-agent#readme",
   "bugs": {
@@ -58,7 +59,8 @@
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@modelcontextprotocol/node": "^2.0.0",

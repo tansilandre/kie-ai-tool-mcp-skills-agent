@@ -122,9 +122,9 @@ packages/core   @kie-ai-tool/core  (PRIVATE, never published; bundled into both)
   src/kie-ai-client.ts  KieAiClient -> Kie.ai API
   src/database.ts       TaskDatabase (SQLite task persistence)
   src/types.ts          Zod schemas
-packages/mcp    @kie-ai-tool/mcp  (bin: kie-ai-mcp-server)
+packages/mcp    @kie-ai-tool/mcp  (bin: kie-mcp)
   src/index.ts          MCP adapter: listTools + dispatch derived from TOOL_REGISTRY
-packages/cli    @kie-ai-tool/cli            (bin: kie-cli)
+packages/cli    @kie-ai-tool/cli            (bin: kie)
   src/index.ts          CLI adapter: yargs commands derived from TOOL_REGISTRY
 ```
 
@@ -260,15 +260,20 @@ if (apiType === 'veo3') {
 
 ## Releases
 
-Not on npm yet. The `@kie-ai-tool` npm scope must be reserved first; until then nothing is
-published and `release.yml` (triggered by a `v*` tag or by hand) must not be run. Once publishing
-is set up:
+Packages on npm under the `@kie-ai-tool` scope (owner: Andre): `@kie-ai-tool/mcp` (bin `kie-mcp`),
+`@kie-ai-tool/cli` (bin `kie`), `@kie-ai-tool/openai-server`. `@kie-ai-tool/core` stays private and
+is bundled into each. One bin per package, so `npx @kie-ai-tool/<pkg>` knows what to run.
 
-- Versions follow semver per package; bump the version, update `CHANGELOG.md` and the package
-  README in the same pull request.
-- `release.yml` publishes the public packages with npm provenance using the `NPM_TOKEN` secret.
-  `@kie-ai-tool/core` stays private and is bundled into each public package.
-- Run `npm pack -w <package> --dry-run` before tagging and check the file list.
+- Releases publish from GitHub Actions (`release.yml`) through npm **trusted publishing** (OIDC,
+  provenance): no npm token exists anywhere. Each package lists this repo and `release.yml` as its
+  trusted publisher on npmjs.com.
+- To release: bump the versions in the three `packages/*/package.json` (semver; keep them together
+  unless there's a reason not to), update `CHANGELOG.md`, the MCP server's `VERSION` and the pinned
+  version in `packages/openai/tests/package-contract.test.ts`, merge, then push a tag `vX.Y.Z`.
+  Versions already on npm are skipped.
+- `scripts/first-publish.sh` was the one-time first publish (a person, 2FA). Use it again only for a
+  brand-new package, then add that package's trusted publisher.
+- Check `npm pack -w <package> --dry-run` before tagging.
 
 ## MCP Tool Architecture & Schema Design
 

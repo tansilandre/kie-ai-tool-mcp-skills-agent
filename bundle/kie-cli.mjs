@@ -26573,7 +26573,7 @@ async function runTool(tool, props, argv, ctx) {
   }
 }
 function build() {
-  let cli = yargs_default(hideBin(process.argv)).scriptName("kie-cli").usage(
+  let cli = yargs_default(hideBin(process.argv)).scriptName("kie").usage(
     "$0 <tool> [options]\n\nGenerate images, video, music and speech via Kie.ai."
   ).option("json", {
     type: "boolean",
@@ -26581,7 +26581,7 @@ function build() {
     describe: "Output raw JSON (machine-readable)"
   }).demandCommand(
     1,
-    "Specify a tool. Run `kie-cli --help` to list available tools."
+    "Specify a tool. Run `kie --help` to list available tools."
   ).recommendCommands().strict().wrap(Math.min(120, process.stdout.columns || 120)).help().alias("h", "help").version(false);
   for (const tool of TOOL_REGISTRY) {
     const js = toInputJsonSchema(tool.schema);
