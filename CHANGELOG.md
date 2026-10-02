@@ -37,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`get_task_status` showed only `task_id` and `status`), prices and plan details. Output schemas
   are now loose objects.
 - Removed the `kie-ai` skill stub, whose evals tested the old direct-run flow.
+- `get_task_status` reports one status vocabulary for unified-task models (`pending`,
+  `processing`, `completed`, `failed`), the words its own polling instructions and
+  `wait_for_task` use, instead of kie.ai's raw `success`/`fail` (now `provider_state`).
+  An agent told to poll "until completed" could otherwise poll forever.
+- `wait_for_task` reports `creditsConsumed`, the credits kie.ai actually charged.
 - `get_task_status` and `wait_for_task` return every result URL of a task, not only
   the first, and treat kie.ai's `queuing` and `generating` states as in progress.
 - The CLI refuses to run `run_model` outside a plan unless
