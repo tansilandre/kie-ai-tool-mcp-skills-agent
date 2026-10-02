@@ -135,6 +135,27 @@ function build() {
         return y;
       },
       async (argv) => {
+        // run_model is new in this fork, so it starts out behind the same
+        // plan approval the MCP server enforces. (The older per-model commands
+        // keep upstream's direct behaviour until spend controls land.)
+        if (
+          tool.category === "catalog" &&
+          process.env.KIE_AI_ALLOW_DIRECT_GENERATION !== "true"
+        ) {
+          process.stdout.write(
+            `${JSON.stringify(
+              {
+                success: false,
+                tool: tool.name,
+                error: `${tool.name} spends credits, so it runs through a plan: prepare_media_generation --items '[{"tool":"${tool.name}","args":{...}}]', then submit_media_generation --planId <id> --approve <id>. Set KIE_AI_ALLOW_DIRECT_GENERATION=true to skip the plan.`,
+              },
+              null,
+              2,
+            )}\n`,
+          );
+          process.exitCode = 1;
+          return;
+        }
         // The CLI's stable context keeps --approve usable across separate processes.
         const ctx = createToolContext("cli");
         if (tool.name === "submit_media_generation") {

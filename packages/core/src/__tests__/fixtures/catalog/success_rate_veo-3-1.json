@@ -1,0 +1,51 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "model": "veo-3-1",
+    "points": [
+      {
+        "start": "2026-10-02T04:10:00Z",
+        "end": "2026-10-02T04:20:00Z",
+        "successRate": 100.0,
+        "errorRate": 0.0,
+        "isNormal": true
+      },
+      {
+        "start": "2026-10-02T04:20:00Z",
+        "end": "2026-10-02T04:30:00Z",
+        "successRate": 100.0,
+        "errorRate": 0.0,
+        "isNormal": true
+      },
+      {
+        "start": "2026-10-02T04:30:00Z",
+        "end": "2026-10-02T04:40:00Z",
+        "successRate": 100.0,
+        "errorRate": 0.0,
+        "isNormal": true
+      },
+      {
+        "start": "2026-10-02T04:40:00Z",
+        "end": "2026-10-02T04:50:00Z",
+        "successRate": 99.0,
+        "errorRate": 1.0,
+        "isNormal": true
+      },
+      {
+        "start": "2026-10-02T04:50:00Z",
+        "end": "2026-10-02T05:00:00Z",
+        "successRate": 100.0,
+        "errorRate": 0.0,
+        "isNormal": true
+      },
+      {
+        "start": "2026-10-02T05:00:00Z",
+        "end": "2026-10-02T05:10:00Z",
+        "successRate": 100.0,
+        "errorRate": 0.0,
+        "isNormal": true
+      }
+    ]
+  }
+}

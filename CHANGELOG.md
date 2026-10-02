@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- Live kie.ai catalog: `search_models`, `get_model_schema`, `get_model_status` (price
+  text and success rate) and `get_balance`, all free. Schemas are cached on disk for 24
+  hours, and kie.ai's 429 rate limit is retried with back-off, falling back to an
+  expired cached schema.
+- `run_model` runs any catalog model on the unified task API. Its input is checked
+  against the model's live schema before anything is sent: required fields, types,
+  allowed values, limits, and local file paths where a URL is needed. It goes through
+  `prepare_media_generation`, and the plan shows kie.ai's price text and any warnings.
+- `KIE_API_KEY` is accepted as well as `KIE_AI_API_KEY`.
+
 ### Changed
+- `get_task_status` and `wait_for_task` return every result URL of a task, not only
+  the first, and treat kie.ai's `queuing` and `generating` states as in progress.
+- The CLI refuses to run `run_model` outside a plan unless
+  `KIE_AI_ALLOW_DIRECT_GENERATION=true`, matching the MCP server.
 - Forked from [felores/kie-cli-mcp](https://github.com/felores/kie-cli-mcp) at `44c7701` as
   kie-ai-tool-mcp-skills-agent, keeping its full git history. Package names moved from
   `@felores/*` to `@kie-ai-tool/*` (`core`, `mcp`, `cli`, `openai-server`); binary names are

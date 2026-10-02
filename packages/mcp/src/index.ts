@@ -3,11 +3,13 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  apiKeyFromEnv,
   categoryPromptText,
   formatToolError,
   getTool,
   KieAiClient,
   type KieAiConfig,
+  KieCatalog,
   TOOL_REGISTRY,
   type ToolContext,
   ToolResult,
@@ -102,6 +104,7 @@ export class KieAiMcpServer {
       "midjourney_generate", // Also generates videos (mj_video, mj_video_hd modes)
     ],
     audio: ["suno_generate_music", "elevenlabs_tts", "elevenlabs_ttsfx"],
+    catalog: ["run_model"],
     utility: KieAiMcpServer.UTILITY_TOOLS,
   };
 
@@ -115,7 +118,7 @@ export class KieAiMcpServer {
   constructor() {
     // Initialize client with config from environment
     this.config = {
-      apiKey: process.env.KIE_AI_API_KEY || "",
+      apiKey: apiKeyFromEnv(),
       baseUrl: process.env.KIE_AI_BASE_URL || "https://api.kie.ai/api/v1",
       timeout: parseInt(process.env.KIE_AI_TIMEOUT || "60000"),
       callbackUrlFallback:
@@ -125,7 +128,9 @@ export class KieAiMcpServer {
     };
 
     if (!this.config.apiKey) {
-      throw new Error("KIE_AI_API_KEY environment variable is required");
+      throw new Error(
+        "Set KIE_AI_API_KEY (or KIE_API_KEY) to your kie.ai API key from https://kie.ai/api-key",
+      );
     }
 
     this.client = new KieAiClient(this.config);
@@ -135,6 +140,7 @@ export class KieAiMcpServer {
     this.toolContext = {
       client: this.client,
       db: this.db,
+      catalog: new KieCatalog(this.client),
       getCallbackUrl: (url) => this.getCallbackUrl(url),
       formatError: formatToolError,
       // Plan utilities must resolve through the server's enabled-tool boundary,

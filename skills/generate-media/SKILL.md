@@ -2,8 +2,9 @@
 name: generate-media
 description: >-
   Plan, price, and generate images, video, music, speech, sound effects, avatars,
-  lip-sync clips, and media edits through Kie.ai. Use for media creation or editing,
-  model selection, generation price questions, and pricing audits. Always prepare and
+  lip-sync clips, and media edits through Kie.ai, with any of the 200+ models in its
+  live catalog. Use for media creation or editing, model selection, model health,
+  credit balance, generation price questions, and pricing audits. Always prepare and
   present a plan before any paid generation, then wait for explicit user approval.
 ---
 
@@ -16,16 +17,29 @@ safeguards. Do not request that bypass for a user-requested generation.
 
 ## Workflow
 
-1. If the requested model is ambiguous, call `list_models` with a capability or text
-   filter. For example, `filter: "lip sync"` finds talking-avatar options. Catalog
-   capabilities are guidance. Follow each `evidenceUrl` for provider facts.
+1. Pick a model. These calls are free:
+   - `search_models` searches kie.ai's live catalog of 200+ models by words, task type
+     or provider (for example `query: "veo"` or `taskType: "Image to Video"`) and shows
+     kie.ai's price text for each.
+   - `get_model_status` shows a model's current price text and its success rate over
+     the last hour and day. Avoid a model whose health is `degraded`.
+   - `get_model_schema` lists a model's input fields, which are required, allowed
+     values and defaults, with a minimal example. Never guess field names.
+   - `list_models` lists only the hand-tuned tools (such as `gpt_image_2` or
+     `kling_video`), which add safe defaults. Prefer one of those when it covers the
+     request; otherwise use `run_model` with any catalog model.
+   - `get_balance` shows the credits left.
 2. Call `prepare_media_generation` with one to six independent `{ tool, args }`
-   items. It validates every target schema, applies only missing safe policy defaults,
-   resolves model and mode, quotes only verified credit formulas, and stores a plan.
-   It does not create provider tasks.
+   items. For a catalog model use `{ "tool": "run_model", "args": { "model": "<id>",
+   "input": { ... } } }`. It validates every item (run_model inputs against the model's
+   live schema), applies only missing safe policy defaults, resolves model and mode,
+   quotes verified credit formulas or shows kie.ai's price text, and stores a plan. It
+   does not create provider tasks. Media inputs must be public URLs: upload local files
+   with `upload_file` first.
 3. Present the complete returned plan. For each item, show the tool, model, mode,
    user settings, applied defaults, effective settings, output count where applicable,
-   reference inputs, and price state. Do not present USD unless the user configured an
+   reference inputs, price state (and kie.ai's price text when there is no exact quote),
+   and any warnings, such as a field the model's schema doesn't list. Do not present USD unless the user configured an
    account-specific conversion outside this skill.
 4. For MCP, the server asks the host to confirm the resolved plan in a form. The MCP
    client must advertise the `elicitation.form` capability and handle the request. Only

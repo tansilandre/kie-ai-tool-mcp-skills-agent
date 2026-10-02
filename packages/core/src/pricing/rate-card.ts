@@ -7,6 +7,8 @@ export interface PriceState {
   sourceFingerprint?: string;
   verifiedAt?: string;
   rateCardVersion: string;
+  /** kie.ai's own price text for the model, shown when no exact formula exists. */
+  note?: string;
 }
 
 export interface RateCardEntry {

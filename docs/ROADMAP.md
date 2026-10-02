@@ -44,9 +44,9 @@ Missing or broken (found while reviewing the code and kie.ai's live API on 2026-
 Each step is one pull request with green CI. Steps marked "live test" spend a few credits on the
 cheapest settings only (gpt-image-2 at 1K, Veo 3.1 Lite at 720p), as Andre allowed.
 
-1. **Fork identity.** New package names, credits, this roadmap, rules for agents working on the
+1. ✅ **Fork identity.** (PR #1) New package names, credits, this roadmap, rules for agents working on the
    repo. No behaviour change.
-2. **Live catalog.** Search all kie.ai models; read a model's schema (cached on disk, with back-off
+2. ✅ **Live catalog.** (PR #2) Search all kie.ai models; read a model's schema (cached on disk, with back-off
    because the schema endpoint rate-limits after a few calls); price text and 24-hour success rate;
    account balance. Run *any* catalog model through the same prepare → approve → submit flow, with
    the request checked against the model's live schema. Accept `KIE_API_KEY`, the name kie.ai's own

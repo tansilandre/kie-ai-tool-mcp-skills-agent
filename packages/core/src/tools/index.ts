@@ -6,6 +6,9 @@ import { finalizeUploadTool } from "./finalize_upload.js";
 import { fluxKontextImageTool } from "./flux_kontext_image.js";
 import { flux2ImageTool } from "./flux2_image.js";
 import { geminiOmniTool } from "./gemini_omni.js";
+import { getBalanceTool } from "./get_balance.js";
+import { getModelSchemaTool } from "./get_model_schema.js";
+import { getModelStatusTool } from "./get_model_status.js";
 import { getTaskStatusTool } from "./get_task_status.js";
 import { getUploadUrlTool } from "./get_upload_url.js";
 import { gptImage2Tool } from "./gpt_image_2.js";
@@ -24,7 +27,9 @@ import { omniHumanVideoTool } from "./omnihuman_video.js";
 import { prepareMediaGenerationTool } from "./prepare_media_generation.js";
 import { qwenImageTool } from "./qwen_image.js";
 import { recraftRemoveBackgroundTool } from "./recraft_remove_background.js";
+import { runModelTool } from "./run_model.js";
 import { runwayAlephVideoTool } from "./runway_aleph_video.js";
+import { searchModelsTool } from "./search_models.js";
 import { submitMediaGenerationTool } from "./submit_media_generation.js";
 import { sunoGenerateMusicTool } from "./suno_generate_music.js";
 import { topazUpscaleImageTool } from "./topaz_upscale_image.js";
@@ -53,6 +58,9 @@ export const TOOL_REGISTRY: ToolDef[] = [
   flux2ImageTool,
   finalizeUploadTool,
   fluxKontextImageTool,
+  getBalanceTool,
+  getModelSchemaTool,
+  getModelStatusTool,
   getTaskStatusTool,
   getUploadUrlTool,
   geminiOmniTool,
@@ -72,7 +80,9 @@ export const TOOL_REGISTRY: ToolDef[] = [
   qwenImageTool,
   prepareMediaGenerationTool,
   recraftRemoveBackgroundTool,
+  runModelTool,
   runwayAlephVideoTool,
+  searchModelsTool,
   sunoGenerateMusicTool,
   submitMediaGenerationTool,
   topazUpscaleImageTool,

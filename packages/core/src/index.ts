@@ -4,6 +4,7 @@
 // TaskDatabase lives behind the "./database" subpath so the OpenAI transport
 // bundle does not pull the sqlite3 native module transitively.
 
+export * from "./catalog.js";
 export * from "./context.js";
 export * from "./docs.js";
 export * from "./generation-plan.js";
@@ -13,6 +14,7 @@ export * from "./media-validation.js";
 export * from "./model-catalog.js";
 export * from "./pricing/audit.js";
 export * from "./pricing/rate-card.js";
+export * from "./schema-check.js";
 export * from "./tools/format-error.js";
 export * from "./tools/index.js";
 export * from "./types.js";

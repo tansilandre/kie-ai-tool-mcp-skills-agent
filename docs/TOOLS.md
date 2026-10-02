@@ -9,7 +9,7 @@ Every tool below is available in both the MCP server and the `kie-cli` CLI. Para
 - **Image:** [bytedance_seedream_image](#bytedance_seedream_image), [flux_kontext_image](#flux_kontext_image), [flux2_image](#flux2_image), [gpt_image_2](#gpt_image_2), [ideogram_reframe](#ideogram_reframe), [midjourney_generate](#midjourney_generate), [nano_banana_image](#nano_banana_image), [qwen_image](#qwen_image), [recraft_remove_background](#recraft_remove_background), [topaz_upscale_image](#topaz_upscale_image), [z_image](#z_image)
 - **Video:** [bytedance_seedance_video](#bytedance_seedance_video), [gemini_omni](#gemini_omni), [grok_imagine](#grok_imagine), [hailuo_video](#hailuo_video), [happyhorse_video](#happyhorse_video), [infinitalk_lip_sync](#infinitalk_lip_sync), [kling_avatar](#kling_avatar), [kling_video](#kling_video), [omnihuman_video](#omnihuman_video), [runway_aleph_video](#runway_aleph_video), [veo3_generate_video](#veo3_generate_video), [veo3_get_1080p_video](#veo3_get_1080p_video), [wan_animate](#wan_animate), [wan_video](#wan_video)
 - **Audio:** [elevenlabs_tts](#elevenlabs_tts), [elevenlabs_ttsfx](#elevenlabs_ttsfx), [suno_generate_music](#suno_generate_music)
-- **Utility:** [finalize_upload](#finalize_upload), [get_task_status](#get_task_status), [get_upload_url](#get_upload_url), [list_models](#list_models), [list_tasks](#list_tasks), [prepare_media_generation](#prepare_media_generation), [submit_media_generation](#submit_media_generation), [upload_file](#upload_file), [upload_widget](#upload_widget), [wait_for_task](#wait_for_task)
+- **Utility:** [finalize_upload](#finalize_upload), [get_balance](#get_balance), [get_model_schema](#get_model_schema), [get_model_status](#get_model_status), [get_task_status](#get_task_status), [get_upload_url](#get_upload_url), [list_models](#list_models), [list_tasks](#list_tasks), [prepare_media_generation](#prepare_media_generation), [search_models](#search_models), [submit_media_generation](#submit_media_generation), [upload_file](#upload_file), [upload_widget](#upload_widget), [wait_for_task](#wait_for_task)
 
 ---
 
@@ -540,6 +540,35 @@ Finalize staged widget media server-side and upload it to Kie.ai. App-only helpe
 | `app_grant` | string | yes | Short-lived widget grant |
 | `media_id` | string | yes | Opaque media ID returned after browser upload |
 
+### get_balance
+
+Show the kie.ai credits left on this API key. Free. 1 credit is about US$0.005.
+
+#### Parameters
+
+_This tool takes no parameters._
+
+### get_model_schema
+
+Read a kie.ai model's input fields from its live schema: names, types, which are required, allowed values and defaults, plus a minimal request example for run_model. Free; cached for 24 hours.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `model` | string | yes | Exact kie.ai model id from search_models, e.g. "gpt-image-2-text-to-image" or "bytedance/seedance-1.5-pro" |
+| `raw` | boolean | no | Return the full dereferenced request schema instead of the compact field list (more tokens) |
+
+### get_model_status
+
+Check a kie.ai model before using it: kie.ai's current price text and its success rate over the last hour and 24 hours. Free. A low or abnormal success rate means tasks are failing right now; pick another model or wait.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `model` | string | yes | Exact kie.ai model id from search_models, e.g. "gpt-image-2-text-to-image" or "bytedance/seedance-1.5-pro" |
+
 ### get_task_status
 
 Get the status of a generation task with intelligent polling guidance. Returns task status, results, and recommended polling strategy (interval, timing, next steps) based on task type (image/video/audio).
@@ -596,6 +625,19 @@ Prepare one to six validated media generations, resolve safe defaults and pricin
 | `defaultProfile` | `safe` | no | Optional explicit safe default policy. The current catalog policy is safe. |
 | `maxConcurrency` | integer | no | Maximum concurrent task creates for this plan (1-4, default 4) |
 | `expiresInSeconds` | integer | no | Plan expiry in seconds (60-3600, default 900) |
+
+### search_models
+
+Search kie.ai's live catalog of 200+ image, video, audio and chat models by words, task type or provider. Free. Returns each model's exact id, task types and kie.ai's price text. Use the id with get_model_schema and run_model.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `query` | string | no | Words that must all appear in the model id, title, provider or task type, e.g. "veo" or "image edit" |
+| `taskType` | string | no | kie.ai task type, e.g. "Text to Image", "Image to Video", "Text to Speech", "Lip Sync" |
+| `provider` | string | no | Provider name, e.g. "Google", "Kling", "ByteDance", "Suno" |
+| `limit` | integer | no | Maximum models to return (default 25) |
 
 ### submit_media_generation
 

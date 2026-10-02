@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { open, realpath } from "node:fs/promises";
 import { basename, isAbsolute, relative } from "node:path";
+import { KieCatalog } from "./catalog.js";
 import { TaskDatabase } from "./database.js";
 import { KieAiClient } from "./kie-ai-client.js";
 import { detectUploadMimeType } from "./media-validation.js";
@@ -14,10 +15,18 @@ function isWithinRoot(candidate: string, root: string): boolean {
   return path === "" || (!path.startsWith("..") && !isAbsolute(path));
 }
 
+/**
+ * The API key from the environment. `KIE_AI_API_KEY` is this project's name;
+ * `KIE_API_KEY` is the name kie.ai's own docs and agent skills use.
+ */
+export function apiKeyFromEnv(): string {
+  return process.env.KIE_AI_API_KEY || process.env.KIE_API_KEY || "";
+}
+
 /** Reads the shared Kie.ai config from environment variables. */
 export function configFromEnv(): KieAiConfig {
   return {
-    apiKey: process.env.KIE_AI_API_KEY || "",
+    apiKey: apiKeyFromEnv(),
     baseUrl: process.env.KIE_AI_BASE_URL || "https://api.kie.ai/api/v1",
     timeout: parseInt(process.env.KIE_AI_TIMEOUT || "60000"),
     callbackUrlFallback:
@@ -30,12 +39,14 @@ export function configFromEnv(): KieAiConfig {
 /**
  * Build a ToolContext from the environment. Used by the CLI (and available to
  * any other adapter) so client, database and helpers are wired identically to
- * the MCP server. Throws if KIE_AI_API_KEY is missing.
+ * the MCP server. Throws if neither KIE_AI_API_KEY nor KIE_API_KEY is set.
  */
 export function createToolContext(approvalContext = "cli"): ToolContext {
   const config = configFromEnv();
   if (!config.apiKey) {
-    throw new Error("KIE_AI_API_KEY environment variable is required");
+    throw new Error(
+      "Set KIE_AI_API_KEY (or KIE_API_KEY) to your kie.ai API key from https://kie.ai/api-key",
+    );
   }
   const client = new KieAiClient(config);
   const db = new TaskDatabase(process.env.KIE_AI_DB_PATH);
@@ -48,6 +59,7 @@ export function createToolContext(approvalContext = "cli"): ToolContext {
   return {
     client,
     db,
+    catalog: new KieCatalog(client),
     approvalContext,
     getCallbackUrl: (url) =>
       url || process.env.KIE_AI_CALLBACK_URL || config.callbackUrlFallback,

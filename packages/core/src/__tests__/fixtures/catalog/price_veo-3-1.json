@@ -1,0 +1,8 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "model": "veo-3-1",
+    "pricingDesc": "Lite mode (text-to-video / image-to-video/ reference-to-video): 720P — 30 credits (≈ $0.15) per video; 1080P — 35 credits (≈ $0.175) per video; 4K — 150 credits (≈ $0.75) per video.\nFast mode (text-to-video / image-to-video / reference-to-video): 720P — 60 credits (≈ $0.30) per video; 1080P — 65 credits (≈ $0.325) per video; 4K — 180 credits (≈ $0.90) per video.\nQuality mode (text-to-video / image-to-video): 720P — 250 credits (≈ $1.25) per video; 1080P — 255 credits (≈ $1.275) per video; 4K — 370 credits (≈ $1.85) per video.\n\nHigh-tier top-ups (+10% bonus) reduce the effective cost by about 10%, making pricing even lower for Lite, Fast, and Quality mode across all resolutions."
+  }
+}

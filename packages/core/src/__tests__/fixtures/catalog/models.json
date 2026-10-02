@@ -1,0 +1,72 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "total": 7,
+    "models": [
+      {
+        "model": "veo-3-1",
+        "slug": "veo-3-1",
+        "title": "Veo 3.1",
+        "provider": "Google",
+        "taskType": ["Text to Video", "Image to Video"],
+        "description": null,
+        "pricingDesc": "Lite mode (text-to-video / image-to-video/ reference-to-video): 720P — 30 credits (≈ $0.15) per video; 1080P — 35 credits (≈ $0.175) per video; 4K — 150 credits (≈ $0.75) per video.\nFast mode (text-to-video / image-to-video / reference-to-video): 720P — 60 credits (≈ $0.30) per video; 1080P — 65 credits (≈ $0.325) per video; 4K — 180 credits (≈ $0.90) per video.\nQuality mode (text-to-video / image-to-video): 720P — 250 credits (≈ $1.25) per video; 1080P — 255 credits (≈ $1.275) per video; 4K — 370 credits (≈ $1.85) per video.\n\nHigh-tier top-ups (+10% bonus) reduce the effective cost by about 10%, making pricing even lower for Lite, Fast, and Quality mode across all resolutions."
+      },
+      {
+        "model": "bytedance/seedance-1.5-pro",
+        "slug": "bytedance/seedance-1.5-pro",
+        "title": "Seedance 1.5 Pro",
+        "provider": "ByteDance",
+        "taskType": ["Image to Video"],
+        "description": null,
+        "pricingDesc": "480p: 1.75 credits/s ($0.00875) no audio, 3.5 credits/s ($0.0175) with audio; \n720p: 3.5 credits/s ($0.0175) no audio, 7 credits/s ($0.035) with audio; \n1080p: 7.5 credits/s ($0.0375) no audio, 15 credits/s ($0.075) with audio.\n\nHigh-tier top-ups include +10% bonus credits. Effective pricing is approximately 10% lower than the above rates."
+      },
+      {
+        "model": "nano-banana-2",
+        "slug": "nano-banana-2",
+        "title": "Nano Banana 2",
+        "provider": "Google",
+        "taskType": ["Text to Image", "Image to Image"],
+        "description": null,
+        "pricingDesc": "Nano Banana 2 — now just 8 credits ($0.04) for 1 K, 12 credits ($0.06) for 2 K, and 18 credits ($0.09) for 4 K, roughly 40 % below the official price.\n High-tier top-ups (+10% bonus) bring effective pricing down to ~$0.036 for 1 K, ~$0.054 for 2 K, and ~$0.081 for 4 K."
+      },
+      {
+        "model": "gpt-image-2-image-to-image",
+        "slug": "gpt-image-2-image-to-image",
+        "title": "Gpt Image 2 Image To Image",
+        "provider": "OpenAI",
+        "taskType": ["Image to Image"],
+        "description": null,
+        "pricingDesc": "GPT-2 Image — now just 6 credits ($0.03) for 1 K, 10 credits ($0.05) for 2 K, and 16 credits ($0.08) for 4 K.\nHigh-tier top-ups (+10% bonus) bring effective pricing down to ~10% off the above rates."
+      },
+      {
+        "model": "gpt-image-2-text-to-image",
+        "slug": "gpt-image-2-text-to-image",
+        "title": "Gpt Image 2 Text To Image",
+        "provider": "OpenAI",
+        "taskType": ["Text to Image"],
+        "description": null,
+        "pricingDesc": "GPT-2 Image — now just 6 credits ($0.03) for 1 K, 10 credits ($0.05) for 2 K, and 16 credits ($0.08) for 4 K.\nHigh-tier top-ups (+10% bonus) bring effective pricing down to ~10% off the above rates."
+      },
+      {
+        "model": "kling-3.0-omni/text-to-video",
+        "slug": "kling-3.0-omni/text-to-video",
+        "title": "Kling 3.0 Omni Text to Video",
+        "provider": "Kling",
+        "taskType": ["Text to Video"],
+        "description": "",
+        "pricingDesc": "💰 Pricing:\n720P: 14 credits/s ($0.070/s, no native audio) | 18 credits/s ($0.090/s, with native audio)\n1080P: 18 credits/s ($0.090/s, no native audio) | 23 credits/s ($0.115/s, with native audio)\n4K: 67 credits/s ($0.335/s, no native audio) | 67 credits/s ($0.335/s, with native audio)\n\nHigh-tier top-ups include a +10% bonus, making effective pricing approximately 10% lower than listed."
+      },
+      {
+        "model": "google/gemini-omni-flash-1-1",
+        "slug": "google/gemini-omni-flash-1-1",
+        "title": "Gemini Omni Flash 1.1",
+        "provider": "Google",
+        "taskType": ["Text to Video", "Image to Video", "Video to Video"],
+        "description": "",
+        "pricingDesc": "Without video input:\n - 360P/720P/1080P: 4s 63 credits ($0.315), 6s 84 credits ($0.42), 8s 105 credits ($0.525), 10s 126 credits ($0.63)\n - 4K: 4s 147 credits ($0.735), 6s 168 credits ($0.84), 8s 189 credits ($0.945), 10s 210 credits ($1.05)\n\nWith video input:\n - 360P/720P/1080P: 168 credits ($0.84) per generation\n - 4K: 252 credits ($1.26) per generation\n\nHigh-tier top-ups include 10% bonus credits, making the effective cost approximately 90% of the listed prices."
+      }
+    ]
+  }
+}

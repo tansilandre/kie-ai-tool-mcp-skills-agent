@@ -16,6 +16,15 @@ const marketDocs = "https://docs.kie.ai/market-api/quickstart";
  */
 export const MODEL_CATALOG: ModelCatalogEntry[] = [
   {
+    toolName: "run_model",
+    model: "any kie.ai catalog model",
+    capabilities: ["any task model in the live kie.ai catalog"],
+    description:
+      "Runs any model from search_models through the unified task API, checked against its live schema.",
+    status: "active",
+    evidenceUrl: "https://docs.kie.ai/ai-agent/overview",
+  },
+  {
     toolName: "nano_banana_image",
     model: "nano-banana-2",
     capabilities: ["image generation", "image editing"],

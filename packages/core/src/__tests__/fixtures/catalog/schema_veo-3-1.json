@@ -1,0 +1,348 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "model": "veo-3-1",
+    "openapi": {
+      "openapi": "3.1.0",
+      "info": {
+        "title": "kie.ai",
+        "description": "kie.ai API 文档",
+        "version": "1.0.0",
+        "contact": {
+          "name": "技术支持",
+          "email": "support@kie.ai"
+        }
+      },
+      "tags": [],
+      "paths": {
+        "/api/v1/jobs/createTask": {
+          "post": {
+            "summary": "Generate Veo3.1 Video",
+            "deprecated": false,
+            "description": ":::warning\nThis is the new version of the API documentation; for the old version of the API, please see [https://docs.kie.ai/old-model/veo3-api/generate-veo-3-video](https://docs.kie.ai/old-model/veo3-api/generate-veo-3-video).\n:::\n### Veo 3.1 Generation API\n\nOur **Veo 3.1 Generation API** is more than a direct wrapper around Google's baseline. It layers extensive optimisation and reliability tooling on top of the official models, giving you greater flexibility and markedly higher success rates — **25% of the official Google pricing** (see [kie.ai/pricing](https://kie.ai/pricing) for full details).\n\n| Capability | Details |\n| :------------------- | :------ |\n| **Models** | • **Veo 3.1 Quality** — flagship model, highest fidelity• **Veo 3.1 Fast** — cost-efficient variant that still delivers strong visual results• **Veo 3.1 Lite** — most cost-effective model for high-volume generation |\n| **Tasks** | • **Text → Video**• **Image → Video** (single reference frame or first and last frames)• **Material → Video** (based on material images) |\n| **Generation Modes** | • **TEXT\\_2\\_VIDEO** — Text-to-video: using text prompts only• **FIRST\\_AND\\_LAST\\_FRAMES\\_2\\_VIDEO** — First and last frames to video: generate transition videos using one or two images• **REFERENCE\\_2\\_VIDEO** — Material-to-video: based on material images (**Fast model** and **Lite model**, supports **16:9 & 9:16**) |\n| **Aspect Ratios** | Supports both native **16:9** and **9:16** outputs. **Auto** mode lets the system decide aspect ratio based on input materials and internal strategy (for production control, we recommend explicitly setting `aspect_ratio`). |\n| **Output Quality** | Both **16:9** and **9:16** support **1080P** and **4K** outputs. **4K requires extra credits** (approximately **2× the credits of generating a Fast mode video**)|\n| **Audio Track** | All videos ship with background audio by default. In rare cases, upstream may suppress audio when the scene is deemed sensitive (e.g. minors). |\n\n### Why our Veo 3.1 API is different\n\n1. **True vertical video** – Native Veo 3.1 supports **9:16** output, delivering authentic vertical videos without the need for re-framing or manual editing.\n2. **Global language reach** – Our flow supports multilingual prompts by default (no extra configuration required).\n3. **Significant cost savings** – Our rates are 25% of Google's direct API pricing.",
+            "operationId": "generate-veo3-1-video",
+            "tags": [],
+            "parameters": [],
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "model": {
+                        "type": "string",
+                        "description": "Select the model type to use.",
+                        "default": "veo-3-1",
+                        "examples": ["veo-3-1"]
+                      },
+                      "callBackUrl": {
+                        "type": "string",
+                        "description": "Completion callback URL for receiving video generation status updates.\n\n- Optional but recommended for production use\n- System will POST task completion status to this URL when the video generation is completed\n- Callback will include task results, video URLs, and status information\n- Your callback endpoint should accept POST requests with JSON payload\n- For detailed callback format and implementation guide, see [Callback Documentation](https://docs.kie.ai/veo3-api/generate-veo-3-video-callbacks)\n- Alternatively, use the Get Video Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation",
+                        "examples": ["http://your-callback-url.com/complete"]
+                      },
+                      "input": {
+                        "type": "object",
+                        "properties": {
+                          "prompt": {
+                            "type": "string",
+                            "description": "Text prompt describing the desired video content. Required for all generation modes.\n\n- Should be detailed and specific in describing video content\n- Can include actions, scenes, style and other information\n- For image-to-video, describe how you want the image to come alive",
+                            "examples": ["A dog playing in a park"]
+                          },
+                          "image_urls": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Image URL list (used in image-to-video mode). Supports 1 or 2 images:\n\n- **1 image**: The generated video will unfold around this image, with the image content presented dynamically\n- **2 images**: The first image serves as the video's first frame, and the second image serves as the video's last frame, with the video transitioning between them\n- Must be valid image URLs\n- Images must be accessible to the API server.",
+                            "examples": [
+                              [
+                                "http://example.com/image1.jpg",
+                                "http://example.com/image2.jpg"
+                              ]
+                            ]
+                          },
+                          "generation_type": {
+                            "type": "string",
+                            "description": "Video generation mode (optional). Specifies different video generation approaches:\n\n- **TEXT_2_VIDEO**: Text-to-video - Generate videos using only text prompts\n- **FIRST_AND_LAST_FRAMES_2_VIDEO**: First and last frames to video - Flexible image-to-video generation mode\n  - 1 image: Generate video based on the provided image\n  - 2 images: First image as first frame, second image as last frame, generating transition video\n- **REFERENCE_2_VIDEO**: Reference-to-video - Generate videos based on reference images, requires 1-3 images in imageUrls (minimum 1, maximum 3)\n\n**Important Notes**:\n- REFERENCE_2_VIDEO mode currently supports the veo3_fast and veo3_lite models.\n- If not specified, the system will automatically determine the generation mode based on whether imageUrls are provided",
+                            "enum": [
+                              "TEXT_2_VIDEO",
+                              "FIRST_AND_LAST_FRAMES_2_VIDEO",
+                              "REFERENCE_2_VIDEO"
+                            ],
+                            "examples": ["TEXT_2_VIDEO"]
+                          },
+                          "aspect_ratio": {
+                            "type": "string",
+                            "description": "Video aspect ratio. Specifies the dimension ratio of the generated video. Available options:\n\n- 16:9: Landscape video format. \n- 9:16: Portrait video format, suitable for mobile short videos\n- Auto: In auto mode, the video will be automatically center-cropped based on whether your uploaded image is closer to 16:9 or 9:16.\n\nDefault value is 16:9.",
+                            "enum": ["16:9", "9:16", "Auto"],
+                            "default": "16:9",
+                            "examples": ["16:9"]
+                          },
+                          "enable_fallback": {
+                            "type": "boolean",
+                            "description": "Deprecated Enable fallback functionality. When set to true, if the official Veo3.1 video generation service is unavailable or encounters exceptions, the system will automatically switch to a backup model for video generation to ensure task continuity and reliability. Default value is false.\n\n- When fallback is enabled, backup model will be used for the following errors:\n  - public error minor upload\n  - Your prompt was flagged by Website as violating content policies\n  - public error prominent people upload\n- Fallback mode requires 16:9 aspect ratio and uses 1080p resolution by default\n- **Note**: Videos generated through fallback mode cannot be accessed via the Get 1080P Video endpoint\n- **Credit Consumption**: Successful fallback has different credit consumption, please see https://kie.ai/pricing for pricing details\n\n**Note: This parameter is deprecated. Please remove this parameter from your requests. The system has automatically optimized the content review mechanism without requiring manual fallback configuration.**",
+                            "default": false,
+                            "deprecated": true,
+                            "examples": [false]
+                          },
+                          "enable_translation": {
+                            "type": "boolean",
+                            "description": "Enable prompt translation to English. When set to true, the system will automatically translate prompts to English before video generation for better generation results. Default value is true.\n\n- true: Enable translation, prompts will be automatically translated to English\n- false: Disable translation, use original prompts directly for generation",
+                            "default": false,
+                            "examples": [true]
+                          },
+                          "watermark": {
+                            "type": "string",
+                            "description": "Watermark text.\n\n- Optional parameter\n- If provided, a watermark will be added to the generated video",
+                            "examples": ["MyBrand"]
+                          },
+                          "resolution": {
+                            "type": "string",
+                            "enum": ["720p", "1080p", "4k"],
+                            "default": "720p",
+                            "description": "Controls the pixel dimensions of the generated image. Higher resolution results in greater clarity and detail, while lower resolution allows for faster generation."
+                          },
+                          "duration": {
+                            "type": "integer",
+                            "description": "The duration of the generated video, in seconds. Optional values are 4, 6, 8.\n**Important Note**:\n- The REFERENCE_2_VIDEO mode currently only supports a duration of 8 seconds.",
+                            "enum": [4, 6, 8],
+                            "examples": [8],
+                            "default": 8
+                          }
+                        },
+                        "required": ["prompt"]
+                      }
+                    },
+                    "required": ["input"],
+                    "examples": [
+                      {
+                        "model": "veo-3-1",
+                        "callBackUrl": "http://your-callback-url.com/complete",
+                        "input": {
+                          "prompt": "A dog playing in a park",
+                          "image_urls": [
+                            "http://example.com/image1.jpg",
+                            "http://example.com/image2.jpg"
+                          ],
+                          "watermark": "MyBrand",
+                          "aspect_ratio": "16:9",
+                          "enable_fallback": false,
+                          "enable_translation": true,
+                          "generation_type": "REFERENCE_2_VIDEO"
+                        }
+                      }
+                    ]
+                  },
+                  "example": {
+                    "model": "veo-3-1",
+                    "callBackUrl": "http://your-callback-url.com/complete",
+                    "input": {
+                      "prompt": "A dog playing in a park",
+                      "image_urls": [
+                        "http://example.com/image1.jpg",
+                        "http://example.com/image2.jpg"
+                      ],
+                      "watermark": "MyBrand",
+                      "aspect_ratio": "16:9",
+                      "enable_fallback": false,
+                      "enable_translation": true,
+                      "generation_type": "REFERENCE_2_VIDEO"
+                    }
+                  }
+                }
+              },
+              "required": true
+            },
+            "responses": {
+              "200": {
+                "description": "Request successful",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer",
+                          "enum": [
+                            200, 400, 401, 402, 404, 422, 429, 455, 500, 501,
+                            505
+                          ],
+                          "description": "Response status code\n\n- **200**: Success - Request has been processed successfully\n- **400**: 1080P is processing. It should be ready in 1-2 minutes. Please check back shortly.\n- **401**: Unauthorized - Authentication credentials are missing or invalid\n- **402**: Insufficient Credits - Account does not have enough credits to perform the operation\n- **404**: Not Found - The requested resource or endpoint does not exist\n- **422**: Validation Error - Request parameters failed validation. When fallback is not enabled and generation fails, error message format: Your request was rejected by Flow(original error message). You may consider using our other fallback channels, which are likely to succeed. Please refer to the documentation.\n- **429**: Rate Limited - Request limit has been exceeded for this resource\n- **455**: Service Unavailable - System is currently undergoing maintenance\n- **500**: Server Error - An unexpected error occurred while processing the request\n- **501**: Generation Failed - Video generation task failed\n- **505**: Feature Disabled - The requested feature is currently disabled"
+                        },
+                        "msg": {
+                          "type": "string",
+                          "description": "Error message when code != 200",
+                          "examples": ["success"]
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "taskId": {
+                              "type": "string",
+                              "description": "Task ID, can be used with Get Video Details endpoint to query task status",
+                              "examples": ["veo_task_abcdef123456"]
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "example": {
+                      "code": 200,
+                      "msg": "success",
+                      "data": {
+                        "taskId": "veo_task_abcdef123456"
+                      }
+                    }
+                  }
+                },
+                "headers": {}
+              },
+              "500": {
+                "$ref": "#/components/responses/Error ",
+                "description": "request failed"
+              }
+            },
+            "security": [
+              {
+                "BearerAuth": []
+              }
+            ],
+            "callbacks": {
+              "onVideoGenerated": {
+                "{$request.body#/callBackUrl}": {
+                  "post": {
+                    "summary": "Video Generation Callback",
+                    "description": "When the video generation task is completed, the system will send the result to your provided callback URL via POST request",
+                    "requestBody": {
+                      "required": true,
+                      "content": {
+                        "application/json": {
+                          "schema": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "integer",
+                                "description": "Status code\n\n- **200**: Success - Video generation task successfully\n- **400**: Your prompt was flagged by Website as violating content policies.\nOnly English prompts are supported at this time.\nFailed to fetch the image. Kindly verify any access limits set by you or your service provider.\npublic error unsafe image upload.\n- **422**: Fallback failed - When fallback is not enabled and specific errors occur, returns error message format: Your request was rejected by Flow(original error message). You may consider using our other fallback channels, which are likely to succeed. Please refer to the documentation.\n- **500**: Internal Error, Please try again later.\nInternal Error - Timeout\n- **501**: Failed - Video generation task failed",
+                                "enum": [200, 400, 422, 500, 501]
+                              },
+                              "msg": {
+                                "type": "string",
+                                "description": "Status message",
+                                "example": "Veo3.1 video generated successfully."
+                              },
+                              "data": {
+                                "type": "object",
+                                "properties": {
+                                  "taskId": {
+                                    "type": "string",
+                                    "description": "Task ID",
+                                    "example": "veo_task_abcdef123456"
+                                  },
+                                  "info": {
+                                    "type": "object",
+                                    "properties": {
+                                      "resultUrls": {
+                                        "type": "string",
+                                        "description": "Generated video URLs",
+                                        "example": "[http://example.com/video1.mp4]"
+                                      },
+                                      "originUrls": {
+                                        "type": "string",
+                                        "description": "Original video URLs. Only has value when aspect_ratio is not 16:9",
+                                        "example": "[http://example.com/original_video1.mp4]"
+                                      },
+                                      "resolution": {
+                                        "type": "string",
+                                        "description": "Video resolution information",
+                                        "example": "1080p"
+                                      }
+                                    }
+                                  },
+                                  "fallbackFlag": {
+                                    "type": "boolean",
+                                    "description": "Whether generated using fallback model. True means backup model was used, false means primary model was used",
+                                    "example": false,
+                                    "deprecated": true
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "responses": {
+                      "200": {
+                        "description": "Callback received successfully"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "webhooks": {},
+      "components": {
+        "schemas": {},
+        "responses": {
+          "Error ": {
+            "description": "request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "Response status code\n\n- **200**: Success - Request has been processed successfully\n- **401**: Unauthorized - Authentication credentials are missing or invalid\n- **402**: Insufficient Credits - Account does not have enough credits to perform the operation\n- **404**: Not Found - The requested resource or endpoint does not exist\n- **408**: Upstream is currently experiencing service issues. No result has been returned for over 10 minutes.\n- **422**: Validation Error - The request parameters failed validation checks\n- **429**: Rate Limited - Request limit has been exceeded for this resource\n- **455**: Service Unavailable - System is currently undergoing maintenance\n- **500**: Server Error - An unexpected error occurred while processing the request\n- **501**: Generation Failed - Content generation task failed\n- **505**: Feature Disabled - The requested feature is currently disabled"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "Response message, error description when failed"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {}
+                    }
+                  },
+                  "required": ["code", "msg", "data"]
+                },
+                "examples": {
+                  "Example 1": {
+                    "summary": "Example 1",
+                    "value": {
+                      "code": 500,
+                      "msg": "Server Error - An unexpected error occurred while processing the request"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "securitySchemes": {
+          "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "API Key",
+            "description": "All API requests require a Bearer Token. Add the header `Authorization: Bearer YOUR_API_KEY` to authenticate requests."
+          }
+        }
+      },
+      "servers": [
+        {
+          "url": "https://api.kie.ai",
+          "description": "正式环境"
+        }
+      ],
+      "security": [
+        {
+          "BearerAuth": []
+        }
+      ]
+    }
+  }
+}

@@ -23,10 +23,15 @@ export function formatPlanApprovalMessage(
       const price =
         item.price.status === "exact"
           ? `${item.price.credits} credits`
-          : "price unknown";
+          : item.price.note
+            ? `no exact quote; kie.ai lists: ${item.price.note.split("\n")[0]}`
+            : "price unknown";
       return [
         `${item.index + 1}. ${item.tool}: ${item.model}, ${item.mode}, ${item.outputCount} output(s), ${price}`,
         `Resolved settings: ${JSON.stringify(item.effectiveSettings)}`,
+        ...(item.warnings?.length
+          ? [`Warnings: ${item.warnings.join("; ")}`]
+          : []),
       ].join("\n");
     })
     .join("\n");
